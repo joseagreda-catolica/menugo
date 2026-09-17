@@ -30,6 +30,8 @@ Detalle completo de la justificación tecnológica en la propuesta del sistema (
 
 En arranque (Bloque 0 / Semana 1). El tablero de trabajo completo (134 tareas, 8 módulos, cronograma de 8 semanas) vive en los [Issues](https://github.com/joseagreda-catolica/menugo/issues) y [Milestones](https://github.com/joseagreda-catolica/menugo/milestones) de este repositorio.
 
+La fuente original de esas 134 tareas y el script que las carga a GitHub están en [`planificacion/`](planificacion/).
+
 ## Estructura del repositorio
 
 Por definirse en la Semana 2: carpetas `api/` (Express) y `web/` (React), cada una con su propio `package.json`.
