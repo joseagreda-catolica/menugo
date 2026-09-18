@@ -1,0 +1,6 @@
+{
+  "name": "menugo-web",
+  "private": true,
+  "version": "0.0.0",
+  "description": "MenúGo - frontend (pendiente de inicializar con Vite + React + Tailwind, tarea S2-12)"
+}
