@@ -19,6 +19,7 @@ import MenuAdmin from '@/pages/MenuAdmin'
 import MesasAdmin from '@/pages/MesasAdmin'
 import TomaPedidos from "@/pages/TomaPedidos.jsx";
 
+
 export default function App() {
   return (
     <AuthProvider>
@@ -35,6 +36,9 @@ export default function App() {
             <Route path="/menu" element={<MenuAdmin />} />
             <Route path="/mesas" element={<MesasAdmin />} />
             <Route path="/pedidos" element={<TomaPedidos />} />
+            <Route path="/cocina" element={<Cocina />} />
+
+
 
             {/* Exclusivas de ADMINISTRADOR */}
             <Route element={<RutaProtegida rolesPermitidos={['ADMINISTRADOR']} />}>
