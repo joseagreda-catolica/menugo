@@ -10,13 +10,14 @@ import Platillos from '@/pages/Platillos'
 import Mesas from '@/pages/Mesas'
 import CartaPublica from '@/pages/CartaPublica'
 import MapaSalon from '@/pages/MapaSalon'
-import TomaPedido from '@/pages/TomaPedido'
+import TomaPedido from '@/pages/TomaPedidos'
 import Cocina from '@/pages/Cocina'
 import Cobro from '@/pages/Cobro'
 import CorteCaja from '@/pages/CorteCaja'
 import Reportes from '@/pages/Reportes'
 import MenuAdmin from '@/pages/MenuAdmin'
 import MesasAdmin from '@/pages/MesasAdmin'
+import TomaPedidos from "@/pages/TomaPedidos.jsx";
 
 export default function App() {
   return (
@@ -33,6 +34,8 @@ export default function App() {
             <Route path="/" element={<Navigate to="/mapa-salon" replace />} />
             <Route path="/menu" element={<MenuAdmin />} />
             <Route path="/mesas" element={<MesasAdmin />} />
+            <Route path="/pedidos" element={<TomaPedidos />} />
+
             {/* Exclusivas de ADMINISTRADOR */}
             <Route element={<RutaProtegida rolesPermitidos={['ADMINISTRADOR']} />}>
               <Route path="/categorias" element={<Categorias />} />
