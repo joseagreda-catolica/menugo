@@ -17,7 +17,7 @@ Ambos integrantes participan en todas las etapas; la tabla indica solo la respon
 
 ## Stack técnico
 
-- **Lenguaje:** JavaScript (ECMAScript 2022) en todo el stack, sobre Node.js 20 LTS
+- **Lenguaje:** JavaScript (ECMAScript 2022) en todo el stack, sobre Node.js 24 LTS<sup>[1](#nota-node)</sup>
 - **Backend:** Express 4, arquitectura monolítica por capas (rutas → controladores → servicios → datos)
 - **Frontend:** React 18 + Vite + Tailwind CSS
 - **Base de datos:** PostgreSQL 16 vía Prisma ORM
@@ -25,6 +25,8 @@ Ambos integrantes participan en todas las etapas; la tabla indica solo la respon
 - **Control de versiones:** Git + GitHub, flujo con ramas `main`/`develop` y pull requests revisados
 
 Detalle completo de la justificación tecnológica en la propuesta del sistema (Entregable 1).
+
+<a name="nota-node"></a>`[1]` La propuesta (Entregable 1) especificó Node.js 20 LTS. Para el desarrollo se usa Node.js 24 LTS porque la versión 20 llegó a fin de soporte (EOL, abril 2026) antes del inicio del ciclo de desarrollo; ninguna otra decisión de arquitectura cambia por esto.
 
 ## Estado del proyecto
 
@@ -38,6 +40,6 @@ Por definirse en la Semana 2: carpetas `api/` (Express) y `web/` (React), cada u
 
 ## Requisitos de entorno
 
-- Node.js 20 LTS
+- Node.js 24 LTS (ver nota sobre la versión más arriba)
 - Docker Desktop (para levantar PostgreSQL en local)
 - Git
