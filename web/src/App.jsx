@@ -16,6 +16,7 @@ import Cobro from '@/pages/Cobro'
 import CorteCaja from '@/pages/CorteCaja'
 import Reportes from '@/pages/Reportes'
 import MenuAdmin from '@/pages/MenuAdmin'
+import MesasAdmin from '@/pages/MesasAdmin'
 
 export default function App() {
   return (
@@ -31,7 +32,7 @@ export default function App() {
             <Route path="/sin-permiso" element={<SinPermiso />} />
             <Route path="/" element={<Navigate to="/mapa-salon" replace />} />
             <Route path="/menu" element={<MenuAdmin />} />
-
+            <Route path="/mesas" element={<MesasAdmin />} />
             {/* Exclusivas de ADMINISTRADOR */}
             <Route element={<RutaProtegida rolesPermitidos={['ADMINISTRADOR']} />}>
               <Route path="/categorias" element={<Categorias />} />
