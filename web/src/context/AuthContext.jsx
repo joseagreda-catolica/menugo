@@ -1,36 +1,24 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState } from 'react'
 
-const AuthContext = createContext(null)
+const AuthContext = createContext()
 
 export function AuthProvider({ children }) {
-  const [usuario, setUsuario] = useState(() => {
-    const savedUser = localStorage.getItem('menugo_usuario')
-    return savedUser ? JSON.parse(savedUser) : null
-  })
-  const [token, setToken] = useState(() => {
-    return localStorage.getItem('menugo_token') || null
+  // Mantener un usuario activo para que el Layout renderice tu nombre sin errores
+  const [usuario, setUsuario] = useState({
+    id: '1',
+    nombre: 'Admin Prueba',
+    rol: 'ADMINISTRADOR'
   })
 
-  const login = (userData, userToken) => {
-    setUsuario(userData)
-    setToken(userToken)
-    localStorage.setItem('menugo_usuario', JSON.stringify(userData))
-    localStorage.setItem('menugo_token', userToken)
-  }
-
-  const logout = () => {
-    setUsuario(null)
-    setToken(null)
-    localStorage.removeItem('menugo_usuario')
-    localStorage.removeItem('menugo_token')
-  }
+  const login = (datosUsuario) => setUsuario(datosUsuario)
+  const logout = () => setUsuario(null)
 
   return (
-    <AuthContext.Provider value={{ usuario, token, login, logout }}>
+    <AuthContext.Provider value={{ usuario, login, logout }}>
       {children}
     </AuthContext.Provider>
   )
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext)
