@@ -39,6 +39,8 @@ export default function App() {
             <Route path="/pedidos" element={<TomaPedidos />} />
             <Route path="/cocina" element={<Cocina />} />
             <Route path="/cobro" element={<Cobro />} />
+            <Route path="/corte-caja" element={<CorteCaja />} />
+            <Route path="/reportes" element={<Reportes />} />
 
 
 
