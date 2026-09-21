@@ -20,6 +20,7 @@ import MesasAdmin from '@/pages/MesasAdmin'
 import TomaPedidos from "@/pages/TomaPedidos.jsx";
 
 
+
 export default function App() {
   return (
     <AuthProvider>
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="/mesas" element={<MesasAdmin />} />
             <Route path="/pedidos" element={<TomaPedidos />} />
             <Route path="/cocina" element={<Cocina />} />
+            <Route path="/cobro" element={<Cobro />} />
 
 
 
