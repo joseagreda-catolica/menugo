@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { MOCK_SECCIONES, ESTADOS_MESA } from '@/services/mesasService'
+import { MOCK_SECCIONES, ESTADOS_MESA } from '@/Services/mesasService'
 
 export default function MesaModal({ isOpen, onClose, onSave, mesa }) {
   const [formData, setFormData] = useState({
