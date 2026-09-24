@@ -15,13 +15,14 @@ cp .env.example .env
 docker compose up -d
 
 cd api
+cp ../.env .env   # Prisma CLI busca .env dentro de api/, no en la raíz
 npm install
 npx prisma migrate dev
 npm run seed
 npm run dev
 ```
 
-El servidor queda escuchando en `http://localhost:3000`.
+El servidor queda escuchando en `http://localhost:3000`. Usuarios de prueba y su contraseña en `prisma/seed.js` (todos: `menugo123`).
 
 ## Estructura
 
