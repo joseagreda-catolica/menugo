@@ -1,74 +1,93 @@
-export default function PedidoCocinaCard({ pedido, onCambiarEstado }) {
-  // Configuración visual según el estado del pedido
-  const configEstado = {
-    pendiente: {
-      borde: 'border-amber-400 bg-amber-50/30',
-      badge: 'bg-amber-100 text-amber-800',
-      etiqueta: 'Pendiente',
-      siguiente: 'en_preparacion',
-      btnTexto: 'Empezar Preparación 🍳',
-      btnColor: 'bg-amber-500 hover:bg-amber-600 text-white'
-    },
-    en_preparacion: {
-      borde: 'border-blue-400 bg-blue-50/30',
-      badge: 'bg-blue-100 text-blue-800',
-      etiqueta: 'En Preparación',
-      siguiente: 'listo',
-      btnTexto: 'Marcar Listo 🛎️',
-      btnColor: 'bg-blue-600 hover:bg-blue-700 text-white'
-    },
-    listo: {
-      borde: 'border-emerald-400 bg-emerald-50/30 opacity-75',
-      badge: 'bg-emerald-100 text-emerald-800',
-      etiqueta: 'Listo para Servir',
-      siguiente: null,
-      btnTexto: 'Completado',
-      btnColor: 'bg-gray-300 text-gray-600 cursor-not-allowed'
-    }
-  }[pedido.estado] || configEstado?.pendiente
+const configEstadoLinea = {
+  pendiente: {
+    label: 'Pendiente',
+    badgeClass: 'bg-amber-100 text-amber-800 border-amber-300',
+    btnClass: 'bg-blue-600 hover:bg-blue-700 text-white',
+    siguienteEstado: 'en_preparacion',
+    btnTexto: 'Preparar 🍳',
+  },
+  en_preparacion: {
+    label: 'En Preparación',
+    badgeClass: 'bg-blue-100 text-blue-800 border-blue-300',
+    btnClass: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+    siguienteEstado: 'listo',
+    btnTexto: 'Listo 🍏',
+  },
+  listo: {
+    label: 'Listo',
+    badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    btnClass: 'bg-gray-700 hover:bg-gray-800 text-white',
+    siguienteEstado: 'entregado',
+    btnTexto: 'Entregar 🍽️',
+  },
+  entregado: {
+    label: 'Entregado',
+    badgeClass: 'bg-gray-100 text-gray-500 border-gray-200',
+    btnClass: '',
+    siguienteEstado: null,
+    btnTexto: 'Entregado ✅',
+  },
+}
 
+export default function PedidoCocinaCard({ pedido, onCambiarEstadoLinea }) {
   return (
-    <div className={`rounded-2xl border-2 p-5 shadow-sm flex flex-col justify-between h-full bg-white transition-all ${configEstado.borde}`}>
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 flex flex-col justify-between">
       <div>
-        {/* Cabecera de la Comanda */}
-        <div className="flex justify-between items-start border-b border-gray-100 pb-3 mb-3">
+        {/* Encabezado de la Mesa */}
+        <div className="flex justify-between items-start mb-3 border-b border-gray-100 pb-2">
           <div>
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-              {pedido.id}
-            </span>
-            <h3 className="text-xl font-black text-gray-800">{pedido.mesaNumero}</h3>
+            <h3 className="font-bold text-gray-800 text-lg">
+              Mesa {pedido?.sesionMesa?.mesa?.numero || 'S/N'}
+            </h3>
+            <p className="text-xs text-gray-500">
+              Mesero: {pedido?.mesero?.nombreCompleto || 'Sin asignar'}
+            </p>
           </div>
-          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${configEstado.badge}`}>
-            {configEstado.etiqueta}
+          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700">
+            Comanda #{pedido.id}
           </span>
         </div>
 
-        {/* Lista de Platillos */}
-        <div className="space-y-3 my-2">
-          {pedido.items.map((item, idx) => (
-            <div key={idx} className="flex flex-col border-b border-gray-50 pb-2">
-              <div className="flex justify-between items-center font-bold text-gray-800 text-sm">
-                <span><strong className="text-orange-600 text-base">{item.cantidad}x</strong> {item.nombre}</span>
-              </div>
-              {item.nota && (
-                <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-md mt-1 self-start">
-                  ⚠️ Nota: {item.nota}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+        {/* Lista de Platillos (PedidoLinea) */}
+        <div className="divide-y divide-gray-100 my-2">
+          {pedido?.lineas?.map((linea) => {
+            const config = configEstadoLinea[linea.estado] || configEstadoLinea.pendiente
 
-      {/* Botón de Acción / Avance de Estado */}
-      <div className="pt-4 border-t border-gray-100 mt-3">
-        <button
-          onClick={() => configEstado.siguiente && onCambiarEstado(pedido.id, configEstado.siguiente)}
-          disabled={!configEstado.siguiente}
-          className={`w-full py-2.5 rounded-xl font-bold text-xs transition-colors shadow-xs ${configEstado.btnColor}`}
-        >
-          {configEstado.btnTexto}
-        </button>
+            return (
+              <div key={linea.id} className="py-2.5 flex items-center justify-between gap-2">
+                <div className="flex-1">
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span className="font-extrabold text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded">
+                      {linea.cantidad}x
+                    </span>
+                    <span className="text-gray-800 font-medium">
+                      {linea.platillo?.nombre || 'Platillo'}
+                    </span>
+                  </div>
+                  {linea.notaPreparacion && (
+                    <p className="text-amber-600 italic text-[11px] mt-0.5 ml-6">
+                      "{linea.notaPreparacion}"
+                    </p>
+                  )}
+                </div>
+
+                {/* Acción según el estado del platillo */}
+                {config.siguienteEstado ? (
+                  <button
+                    onClick={() => onCambiarEstadoLinea(linea.id, config.siguienteEstado)}
+                    className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-colors cursor-pointer ${config.btnClass}`}
+                  >
+                    {config.btnTexto}
+                  </button>
+                ) : (
+                  <span className={`px-2 py-1 rounded-lg text-[11px] font-bold border ${config.badgeClass}`}>
+                    {config.label}
+                  </span>
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

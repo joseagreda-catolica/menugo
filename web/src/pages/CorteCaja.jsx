@@ -1,131 +1,144 @@
-import { useState } from 'react'
-import { MOCK_PEDIDOS_INICIALES } from '@/Services/pedidosService'
+import { useState, useEffect, useCallback } from 'react'
+import { getCorteCajaActual, realizarCorteCaja } from '@/Services/pedidosService'
 
 export default function CorteCaja() {
-  const [montoInicial, setMontoInicial] = useState(100.0) // Fondo de caja inicial
-  const [efectivoContado, setEfectivoContado] = useState('')
-  const [cajaCerrada, setCajaCerrada] = useState(false)
+  const [resumen, setResumen] = useState(null)
+  const [cargando, setCargando] = useState(true)
+  const [procesando, setProcesando] = useState(false)
+  const [error, setError] = useState(null)
 
-  // Obtener ventas realizadas
-  const pedidosPagados = MOCK_PEDIDOS_INICIALES.filter(p => p.estado === 'pagado')
-  const totalVentasEfectivo = pedidosPagados.reduce((sum, p) => sum + p.total, 0)
-  
-  // Totales esperados
-  const totalEsperadoEnCaja = parseFloat(montoInicial || 0) + totalVentasEfectivo
-  const efectivoReal = parseFloat(efectivoContado || 0)
-  const diferencia = efectivoReal - totalEsperadoEnCaja
+  // Cargar el resumen de ventas del turno actual
+  const cargarResumenTurno = useCallback(async () => {
+    try {
+      const data = await getCorteCajaActual()
+      setResumen(data || null)
+      setError(null)
+    } catch (err) {
+      console.error('Error al obtener el resumen de caja:', err)
+      setError('No se pudo cargar el resumen del turno actual.')
+    } finally {
+      setCargando(false)
+    }
+  }, [])
 
-  const handleCerrarCaja = (e) => {
-    e.preventDefault()
-    if (!efectivoContado) return
+  useEffect(() => {
+    let isMounted = true
 
-    setCajaCerrada(true)
-    alert('🔒 Caja cerrada exitosamente. Arqueo registrado.')
+    const obtenerDatos = async () => {
+      try {
+        const data = await getCorteCajaActual()
+        if (isMounted) {
+          setResumen(data || null)
+          setError(null)
+        }
+      } catch (err) {
+        if (isMounted) {
+          console.error('Error al obtener el resumen de caja:', err)
+          setError('No se pudo cargar el resumen del turno actual.')
+        }
+      } finally {
+        if (isMounted) setCargando(false)
+      }
+    }
+
+    obtenerDatos()
+  }, [])
+
+  // Confirmar y realizar el cierre del turno
+  const handleCerrarTurno = async () => {
+    const confirmar = window.confirm(
+      '¿Estás seguro de que deseas realizar el cierre de caja? Esta acción finalizará el turno actual.'
+    )
+
+    if (!confirmar) return
+
+    try {
+      setProcesando(true)
+      await realizarCorteCaja()
+      alert('¡Corte de caja realizado con éxito!')
+      cargarResumenTurno()
+    } catch (err) {
+      console.error('Error al cerrar caja:', err)
+      alert('No se pudo completar el cierre de caja. Revisa la consola o la conexión.')
+    } finally {
+      setProcesando(false)
+    }
   }
+
+  // Totales con valores por defecto
+  const totalEfectivo = Number(resumen?.totalEfectivo || 0)
+  const totalTarjeta = Number(resumen?.totalTarjeta || 0)
+  const totalOtro = Number(resumen?.totalOtro || 0)
+  const totalGeneral = Number(resumen?.totalGeneral || totalEfectivo + totalTarjeta + totalOtro)
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Encabezado */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800">Corte y Arqueo de Caja</h1>
-        <p className="text-gray-500 text-sm">Realiza el cierre del turno y concilia el dinero en efectivo del cajón.</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Resumen del Turno */}
-        <div className="md:col-span-2 bg-white p-6 rounded-2xl border border-gray-100 shadow-2xs space-y-5">
-          <h2 className="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3">Resumen de Ventas del Turno</h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-              <span className="text-xs text-gray-500 block font-medium">Fondo Inicial</span>
-              <span className="text-xl font-bold text-gray-800">${parseFloat(montoInicial || 0).toFixed(2)}</span>
-            </div>
-            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-              <span className="text-xs text-emerald-700 block font-medium">Ventas Efectivo</span>
-              <span className="text-xl font-bold text-emerald-800">${totalVentasEfectivo.toFixed(2)}</span>
-            </div>
-            <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
-              <span className="text-xs text-orange-700 block font-medium">Total Esperado</span>
-              <span className="text-xl font-bold text-orange-800">${totalEsperadoEnCaja.toFixed(2)}</span>
-            </div>
-          </div>
-
-          {/* Desglose de Pedidos Pagados */}
-          <div>
-            <h3 className="text-sm font-bold text-gray-700 mb-2">Comandas Liquidadas ({pedidosPagados.length})</h3>
-            <div className="max-h-48 overflow-y-auto space-y-2 pr-1 border border-gray-100 rounded-xl p-3">
-              {pedidosPagados.length === 0 ? (
-                <p className="text-xs text-gray-400 italic text-center py-4">No hay ventas registradas en este turno.</p>
-              ) : (
-                pedidosPagados.map((pedido) => (
-                  <div key={pedido.id} className="flex justify-between items-center text-xs py-1.5 border-b border-gray-50 last:border-0">
-                    <div>
-                      <span className="font-bold text-gray-800">{pedido.mesaNumero}</span>
-                      <span className="text-gray-400 ml-2">({pedido.id})</span>
-                    </div>
-                    <span className="font-bold text-emerald-600">${pedido.total.toFixed(2)}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">Corte de Caja 📊</h1>
+          <p className="text-sm text-gray-500">
+            Resumen de ingresos del turno e historial de pagos procesados.
+          </p>
         </div>
 
-        {/* Panel de Arqueo */}
-        <div className="md:col-span-1 bg-white p-6 rounded-2xl border border-gray-100 shadow-2xs h-fit space-y-4">
-          <h2 className="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3">Arqueo Manual</h2>
+        <button
+          onClick={cargarResumenTurno}
+          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl transition-colors cursor-pointer"
+        >
+          🔄 Actualizar datos
+        </button>
+      </div>
 
-          <form onSubmit={handleCerrarCaja} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Fondo Inicial ($)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={montoInicial}
-                onChange={(e) => setMontoInicial(e.target.value)}
-                disabled={cajaCerrada}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-100"
-              />
+      {/* Indicador de Carga */}
+      {cargando && (
+        <div className="py-20 text-center text-gray-400 font-medium animate-pulse">
+          Calculando totales del turno...
+        </div>
+      )}
+
+      {/* Mensaje de Error */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex justify-between items-center">
+          <span>{error}</span>
+          <button onClick={cargarResumenTurno} className="underline font-bold text-xs hover:text-red-800">
+            Reintentar
+          </button>
+        </div>
+      )}
+
+      {!cargando && !error && (
+        <div className="space-y-6">
+          {/* Tarjetas de Métodos de Pago */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-1">
+              <span className="text-xs font-bold text-gray-400 uppercase">💵 Efectivo</span>
+              <p className="text-2xl font-extrabold text-gray-800">${totalEfectivo.toFixed(2)}</p>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Efectivo Físico Contado ($)</label>
-              <input
-                type="number"
-                step="0.01"
-                required
-                value={efectivoContado}
-                onChange={(e) => setEfectivoContado(e.target.value)}
-                placeholder="0.00"
-                disabled={cajaCerrada}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-100"
-              />
+            <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-1">
+              <span className="text-xs font-bold text-gray-400 uppercase">📱 Otros Métodos</span>
+              <p className="text-2xl font-extrabold text-purple-600">${totalOtro.toFixed(2)}</p>
             </div>
+          </div>
 
-            {efectivoContado && (
-              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
-                <div className="flex justify-between text-xs text-gray-600">
-                  <span>Diferencia:</span>
-                  <span className={`font-bold ${
-                    diferencia === 0 ? 'text-emerald-600' : diferencia > 0 ? 'text-blue-600' : 'text-red-600'
-                  }`}>
-                    {diferencia === 0 ? '$0.00 (Cuadre Exacto)' : `${diferencia > 0 ? '+' : ''}$${diferencia.toFixed(2)}`}
-                  </span>
-                </div>
-              </div>
-            )}
+          {/* Banner de Total General */}
+          <div className="bg-slate-900 text-white rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-4 shadow-md">
+            <div>
+              <span className="text-xs font-bold text-slate-400 uppercase">Total Acumulado en Turno</span>
+              <h2 className="text-3xl font-extrabold">${totalGeneral.toFixed(2)}</h2>
+            </div>
 
             <button
-              type="submit"
-              disabled={cajaCerrada || !efectivoContado}
-              className="w-full py-3 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white font-bold rounded-xl shadow-sm transition-colors text-sm cursor-pointer disabled:cursor-not-allowed"
+              onClick={handleCerrarTurno}
+              disabled={procesando || totalGeneral === 0}
+              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full md:w-auto"
             >
-              {cajaCerrada ? 'Caja Cerrada 🔒' : 'Realizar Cierre de Caja 💵'}
+              {procesando ? 'Procesando Cierre...' : '🔒 Realizar Cierre de Turno'}
             </button>
-          </form>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

@@ -2,10 +2,11 @@ import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 
 export default function RutaProtegida({ rolesPermitidos }) {
-  const { usuario, token } = useAuth()
+  // Quitamos "token" porque el AuthContext actual solo tiene "usuario"
+  const { usuario } = useAuth()
 
-  // 1. Si no hay token/usuario autenticado, redirige al Login
-  if (!token || !usuario) {
+  // 1. Si no hay usuario autenticado, redirige al Login
+  if (!usuario) {
     return <Navigate to="/login" replace />
   }
 

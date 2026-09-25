@@ -1,13 +1,20 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>web</title>
+    <title>MenúGo</title>
+    <!-- 1. Cargamos Tailwind directamente para evitar problemas de Vite -->
+    <script src="https://cdn.tailwindcss.com"></script>
   </head>
-  <body>
-    <div id="root"></div>
+  
+  <!-- 2. Forzamos al body a ocupar toda la pantalla sin márgenes -->
+  <body class="w-full min-h-screen m-0 p-0 bg-gray-100">
+    
+    <!-- 3. Obligamos al root a expandirse al 100% (esto quita lo aplastado) -->
+    <div id="root" class="w-full min-h-screen m-0 p-0 block max-w-none"></div>
+    
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
