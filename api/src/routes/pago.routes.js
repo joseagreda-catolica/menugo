@@ -1,7 +1,12 @@
 const { Router } = require('express');
 const prisma = require('../lib/prisma');
+const requireAuth = require('../middlewares/auth.middleware');
+const requireRole = require('../middlewares/role.middleware');
 
 const router = Router();
+
+// RF-28/RF-29: registrar un pago lo hace el cajero.
+router.use(requireAuth, requireRole('administrador', 'cajero'));
 
 const procesarCobroDirecto = async (req, res) => {
   try {

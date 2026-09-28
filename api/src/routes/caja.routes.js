@@ -1,7 +1,12 @@
 const { Router } = require('express');
 const prisma = require('../lib/prisma');
+const requireAuth = require('../middlewares/auth.middleware');
+const requireRole = require('../middlewares/role.middleware');
 
 const router = Router();
+
+// RF-28/RF-29: el corte de caja lo maneja el cajero.
+router.use(requireAuth, requireRole('administrador', 'cajero'));
 
 // Handler principal para obtener el resumen de caja activo
 const obtenerCorteActual = async (req, res) => {

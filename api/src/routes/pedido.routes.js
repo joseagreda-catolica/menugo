@@ -1,7 +1,12 @@
 const { Router } = require('express');
 const prisma = require('../lib/prisma');
+const requireAuth = require('../middlewares/auth.middleware');
+const requireRole = require('../middlewares/role.middleware');
 
 const router = Router();
+
+// RF-28/RF-29: mesero levanta pedidos, cocinero cambia el estado de preparacion.
+router.use(requireAuth, requireRole('administrador', 'mesero', 'cocinero'));
 
 // ============================================================================
 // 1. GET /api/pedidos - Consultar comandas para la Cocina (KDS)

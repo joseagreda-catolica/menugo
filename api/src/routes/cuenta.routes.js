@@ -1,7 +1,12 @@
 const { Router } = require('express');
 const prisma = require('../lib/prisma');
+const requireAuth = require('../middlewares/auth.middleware');
+const requireRole = require('../middlewares/role.middleware');
 
 const router = Router();
+
+// RF-28/RF-29: mesero solicita la cuenta, cajero la cobra.
+router.use(requireAuth, requireRole('administrador', 'mesero', 'cajero'));
 
 // GET /api/cuentas (o /api/cuentas?estado=pendiente)
 router.get('/', async (req, res) => {

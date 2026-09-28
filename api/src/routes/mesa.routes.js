@@ -1,7 +1,12 @@
 const { Router } = require('express');
 const prisma = require('../lib/prisma');
+const requireAuth = require('../middlewares/auth.middleware');
+const requireRole = require('../middlewares/role.middleware');
 
 const router = Router();
+
+// RF-28/RF-29: administrador gestiona mesas, mesero opera el salon.
+router.use(requireAuth, requireRole('administrador', 'mesero'));
 
 // Función auxiliar para parsear el número de mesa
 const parsearNumeroMesa = (valor) => {
