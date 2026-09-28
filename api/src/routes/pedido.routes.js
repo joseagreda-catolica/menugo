@@ -70,6 +70,12 @@ router.post('/', async (req, res) => {
     }
 
     const resultado = await prisma.$transaction(async (tx) => {
+      // RNF-07: bloquea la fila de la mesa antes de leer su sesion activa, para
+      // que dos meseros no puedan abrir la misma mesa al mismo tiempo (la
+      // segunda transaccion espera aqui hasta que la primera confirme, y
+      // entonces ve la sesion recien creada en vez de crear una duplicada).
+      await tx.$queryRaw`SELECT id FROM mesa WHERE id = ${idMesa} FOR UPDATE`;
+
       // 1. Obtener un mesero válido (meseroId es campo obligatorio en Pedido y SesionMesa)
       let idMeseroFinal = Number(meseroId);
       if (isNaN(idMeseroFinal)) {
