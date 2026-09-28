@@ -21,7 +21,7 @@ async function crear(req, res, next) {
 async function actualizar(req, res, next) {
   try {
     const id = Number(req.params.id);
-    res.json(await platilloService.actualizar(id, req.body));
+    res.json(await platilloService.actualizar(id, req.body, req.usuario.id));
   } catch (err) {
     next(err);
   }

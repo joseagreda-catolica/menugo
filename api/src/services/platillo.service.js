@@ -1,6 +1,7 @@
 const AppError = require('../lib/AppError');
 const platilloRepository = require('../repositories/platillo.repository');
 const precioService = require('./precio.service');
+const bitacoraService = require('./bitacora.service');
 
 // El API siempre devuelve el precio ya resuelto como un campo plano (ver
 // docs/contrato-api-carta.md): el frontend no necesita saber que el precio
@@ -23,7 +24,7 @@ async function crear({ precio, ...datosPlatillo }) {
   return mapear(conPrecio);
 }
 
-async function actualizar(id, { precio, ...datosPlatillo }) {
+async function actualizar(id, { precio, ...datosPlatillo }, usuarioId) {
   const existente = await platilloRepository.findById(id);
   if (!existente) {
     throw new AppError(404, 'NO_ENCONTRADO', `No existe el platillo ${id}.`);
@@ -32,8 +33,25 @@ async function actualizar(id, { precio, ...datosPlatillo }) {
   if (Object.keys(datosPlatillo).length > 0) {
     await platilloRepository.update(id, datosPlatillo);
   }
+
   if (precio !== undefined) {
+    const precioAnterior = await precioService.obtenerVigente(id);
+    const cambioDePrecio = !precioAnterior || Number(precioAnterior.precio) !== Number(precio);
     await precioService.actualizarPrecio(id, precio);
+
+    // RF-30: toda variacion de precio queda en bitacora.
+    if (cambioDePrecio && usuarioId) {
+      await bitacoraService.registrar({
+        usuarioId,
+        accion: 'cambio_precio',
+        entidad: 'platillo',
+        entidadId: id,
+        detalle: {
+          precioAnterior: precioAnterior ? Number(precioAnterior.precio) : null,
+          precioNuevo: Number(precio),
+        },
+      });
+    }
   }
 
   const actualizado = await platilloRepository.findById(id);

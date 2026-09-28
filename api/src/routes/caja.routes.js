@@ -2,6 +2,7 @@ const { Router } = require('express');
 const prisma = require('../lib/prisma');
 const requireAuth = require('../middlewares/auth.middleware');
 const requireRole = require('../middlewares/role.middleware');
+const bitacoraService = require('../services/bitacora.service');
 
 const router = Router();
 
@@ -190,6 +191,15 @@ router.post('/cerrar', async (req, res) => {
         totalOtro: otro,
         totalGeneral: efec + tarj + otro,
       },
+    });
+
+    // RF-30: el cierre de caja queda registrado en bitacora.
+    await bitacoraService.registrar({
+      usuarioId: req.usuario.id,
+      accion: 'cierre_caja',
+      entidad: 'corte_caja',
+      entidadId: corteCerrado.id,
+      detalle: { totalEfectivo: efec, totalTarjeta: tarj, totalOtro: otro, totalGeneral: efec + tarj + otro },
     });
 
     res.json({ ok: true, ...corteCerrado });

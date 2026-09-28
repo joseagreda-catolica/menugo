@@ -2,6 +2,7 @@ const { Router } = require('express');
 const prisma = require('../lib/prisma');
 const requireAuth = require('../middlewares/auth.middleware');
 const requireRole = require('../middlewares/role.middleware');
+const bitacoraService = require('../services/bitacora.service');
 
 const router = Router();
 
@@ -213,10 +214,33 @@ router.patch('/lineas/:id/estado', async (req, res) => {
 router.patch('/:id/estado', async (req, res) => {
   try {
     const { id } = req.params;
-    const { estado } = req.body; // Valores válidos: 'abierto', 'cerrado', 'anulado'
+    const { estado, motivo } = req.body; // Valores válidos: 'abierto', 'cerrado', 'anulado'
+    const idPedido = Number(id);
+
+    // RF-16: anular un pedido exige motivo y deja constancia de quien lo hizo.
+    if (estado === 'anulado') {
+      if (!motivo) {
+        return res.status(400).json({ error: 'Anular un pedido requiere indicar el motivo.' });
+      }
+
+      const pedidoAnulado = await prisma.pedido.update({
+        where: { id: idPedido },
+        data: { estado: 'anulado', motivoAnulacion: motivo, anuladoPor: req.usuario.id },
+      });
+
+      await bitacoraService.registrar({
+        usuarioId: req.usuario.id,
+        accion: 'anulacion_pedido',
+        entidad: 'pedido',
+        entidadId: idPedido,
+        detalle: { motivo },
+      });
+
+      return res.json({ ok: true, pedido: pedidoAnulado });
+    }
 
     const pedidoActualizado = await prisma.pedido.update({
-      where: { id: Number(id) },
+      where: { id: idPedido },
       data: { estado },
     });
 
