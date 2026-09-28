@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { getCuentasPendientes, registrarPagoCuenta } from '@/Services/pedidosService'
+import { useState, useEffect } from 'react'
+import { obtenerCuentasPendientes, registrarPago } from '@/Services/cajaService'
 
 export default function Cobro() {
   const [cuentas, setCuentas] = useState([])
@@ -10,48 +10,25 @@ export default function Cobro() {
   const [procesando, setProcesando] = useState(false)
   const [error, setError] = useState(null)
 
-  // Función para recargar cuentas desde el Backend
-  const cargarCuentas = useCallback(async () => {
-    try {
-      const data = await getCuentasPendientes()
-      setCuentas(data || [])
-      setError(null)
-    } catch (err) {
-      console.error('Error al obtener cuentas pendientes:', err)
-      setError('No se pudieron obtener las cuentas pendientes.')
-    } finally {
-      setCargando(false)
-    }
-  }, [])
+  // Cargar cuentas pendientes gestionando las Promesas explícitamente para el Linter
+  const cargarCuentas = () => {
+    obtenerCuentasPendientes()
+      .then((data) => {
+        setCuentas(data || [])
+        setError(null)
+      })
+      .catch((err) => {
+        console.error('Error al obtener cuentas pendientes:', err)
+        setError('No se pudieron obtener las cuentas pendientes.')
+      })
+      .finally(() => setCargando(false))
+  }
 
-  // Carga inicial y refresco automático seguro
+  // Refresco automático cada 10 segundos
   useEffect(() => {
-    let isMounted = true
-
-    const obtenerDatos = async () => {
-      try {
-        const data = await getCuentasPendientes()
-        if (isMounted) {
-          setCuentas(data || [])
-          setError(null)
-        }
-      } catch (err) {
-        if (isMounted) {
-          console.error('Error al obtener cuentas pendientes:', err)
-          setError('No se pudieron obtener las cuentas pendientes.')
-        }
-      } finally {
-        if (isMounted) setCargando(false)
-      }
-    }
-
-    obtenerDatos()
-    const interval = setInterval(obtenerDatos, 10000)
-
-    return () => {
-      isMounted = false
-      clearInterval(interval)
-    }
+    cargarCuentas()
+    const interval = setInterval(cargarCuentas, 10000)
+    return () => clearInterval(interval)
   }, [])
 
   // Cálculos financieros
@@ -60,7 +37,7 @@ export default function Cobro() {
   const cambio = formaPago === 'efectivo' ? Math.max(0, efectivoRecibido - totalCuenta) : 0
 
   // Procesar cobro en el backend
-  const handleProcesarPago = async (e) => {
+  const handleProcesarPago = (e) => {
     e.preventDefault()
     if (!cuentaSeleccionada) return
 
@@ -69,24 +46,23 @@ export default function Cobro() {
       return
     }
 
-    try {
-      setProcesando(true)
-      await registrarPagoCuenta({
-        cuentaId: cuentaSeleccionada.id,
-        formaPago,
-        monto: totalCuenta,
-      })
+    setProcesando(true)
 
-      alert('¡Pago procesado con éxito!')
-      setCuentaSeleccionada(null)
-      setMontoEntregado('')
-      cargarCuentas()
-    } catch (err) {
-      console.error('Error al procesar pago:', err)
-      alert('No se pudo registrar el pago. Revisa la consola o la conexión.')
-    } finally {
-      setProcesando(false)
-    }
+    // registrarPago(cuentaId, formaPago, montoTotal)
+    registrarPago(cuentaSeleccionada.id, formaPago, totalCuenta)
+      .then(() => {
+        alert('¡Pago procesado con éxito! La mesa ha sido liberada.')
+        setCuentaSeleccionada(null)
+        setMontoEntregado('')
+        cargarCuentas()
+      })
+      .catch((err) => {
+        console.error('Error al procesar pago:', err)
+        alert(`No se pudo registrar el pago: ${err.message || 'Revisa la conexión.'}`)
+      })
+      .finally(() => {
+        setProcesando(false)
+      })
   }
 
   return (
@@ -108,13 +84,14 @@ export default function Cobro() {
         </button>
       </div>
 
-      {/* Carga y Errores */}
+      {/* Estado de Carga */}
       {cargando && (
         <div className="py-20 text-center text-gray-400 font-medium animate-pulse">
           Cargando cuentas de la caja...
         </div>
       )}
 
+      {/* Estado de Error */}
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex justify-between items-center">
           <span>{error}</span>
@@ -124,6 +101,7 @@ export default function Cobro() {
         </div>
       )}
 
+      {/* Contenido principal */}
       {!cargando && !error && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Listado de Mesas por Cobrar */}
@@ -194,7 +172,7 @@ export default function Cobro() {
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Mesa:</span>
                     <span className="font-bold text-gray-800">
-                      Mesa #{cuentaSeleccionada.sesionMesa?.mesa?.numero}
+                      Mesa #{cuentaSeleccionada.sesionMesa?.mesa?.numero ?? 'S/N'}
                     </span>
                   </div>
                   <div className="flex justify-between text-base font-bold">
@@ -203,7 +181,7 @@ export default function Cobro() {
                   </div>
                 </div>
 
-                {/* Forma de Pago (Ajustado a 2 opciones y 2 columnas) */}
+                {/* Selección de Forma de Pago */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-600 uppercase">Forma de Pago</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -227,7 +205,7 @@ export default function Cobro() {
                   </div>
                 </div>
 
-                {/* Ingreso de Efectivo / Cambio */}
+                {/* Ingreso de Efectivo y Cálculo de Cambio */}
                 {formaPago === 'efectivo' && (
                   <div className="space-y-3 pt-2">
                     <div>
@@ -247,7 +225,7 @@ export default function Cobro() {
                     </div>
 
                     <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-xl text-emerald-800 text-sm font-bold">
-                      <span>Cambio:</span>
+                      <span>Cambio / Vueltas:</span>
                       <span className="text-lg">${cambio.toFixed(2)}</span>
                     </div>
                   </div>

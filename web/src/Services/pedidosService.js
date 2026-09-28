@@ -1,103 +1,36 @@
-const API_URL = 'http://localhost:3000/api' // Ajusta el puerto o base de tu backend si varía
+const API_URL = 'http://localhost:3000/api'
 
-// ==========================================
-// SERVICIOS PARA COCINA (KDS)
-// ==========================================
-
-// Obtener comandas activas para la pantalla de cocina
-export async function getPedidosCocina() {
-  const response = await fetch(`${API_URL}/pedidos`)
-  if (!response.ok) {
-    throw new Error('Error al consultar las comandas de cocina')
-  }
-  return await response.json()
+function headersConAuth(extra = {}) {
+  const token = localStorage.getItem('menugo_token')
+  return { ...extra, Authorization: `Bearer ${token}` }
 }
 
-// Actualizar el estado de un platillo individual (PedidoLinea)
-export async function cambiarEstadoLinea(lineaId, nuevoEstado) {
-  const response = await fetch(`${API_URL}/pedidos/lineas/${lineaId}/estado`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ estado: nuevoEstado }),
-  })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.error || 'Error al actualizar el estado del platillo')
-  }
-
-  return await response.json()
+async function manejarRespuesta(res) {
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error?.message || data.error || 'Ocurrio un error inesperado.')
+  return data
 }
 
-// Actualizar el estado de la comanda general (Pedido)
-export async function cambiarEstadoPedido(pedidoId, nuevoEstado) {
-  const response = await fetch(`${API_URL}/pedidos/${pedidoId}/estado`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ estado: nuevoEstado }),
-  })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.error || 'Error al actualizar el estado del pedido')
-  }
-
-  return await response.json()
+export async function obtenerPedidos() {
+  const res = await fetch(`${API_URL}/pedidos`, { headers: headersConAuth() })
+  return manejarRespuesta(res)
 }
 
-// ==========================================
-// SERVICIOS PARA CAJA / COBRO (POS)
-// ==========================================
-
-// Obtener las cuentas que están pendientes de cobro
-export async function getCuentasPendientes() {
-  const response = await fetch(`${API_URL}/cuentas?estado=pendiente`)
-  if (!response.ok) {
-    throw new Error('Error al consultar las cuentas pendientes')
-  }
-  return await response.json()
-}
-
-// Registrar un pago y cerrar la cuenta
-export async function registrarPagoCuenta({ cuentaId, formaPago, monto }) {
-  const response = await fetch(`${API_URL}/cuentas/${cuentaId}/pagos`, {
+export async function crearPedido(mesaId, lineas) {
+  // lineas: [{ platilloId, cantidad, notaPreparacion }] -- SIN precio, el servidor lo resuelve solo
+  const res = await fetch(`${API_URL}/pedidos`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ formaPago, monto }),
+    headers: headersConAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ mesaId, lineas }),
   })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.error || 'Error al procesar el pago')
-  }
-
-  return await response.json()
+  return manejarRespuesta(res)
 }
 
-// ==========================================
-// SERVICIOS PARA CORTE DE CAJA
-// ==========================================
-
-// Obtener el acumulado del turno actual para el corte
-export async function getCorteCajaActual() {
-  const response = await fetch(`${API_URL}/corte-caja/actual`)
-  if (!response.ok) {
-    throw new Error('Error al obtener el resumen de caja')
-  }
-  return await response.json()
-}
-
-// Ejecutar el cierre de caja del turno
-export async function realizarCorteCaja() {
-  const response = await fetch(`${API_URL}/corte-caja/cerrar`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+export async function actualizarEstadoLinea(lineaId, estado) {
+  const res = await fetch(`${API_URL}/pedidos/lineas/${lineaId}/estado`, {
+    method: 'PATCH',
+    headers: headersConAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ estado }),
   })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.error || 'Error al procesar el cierre de caja')
-  }
-
-  return await response.json()
+  return manejarRespuesta(res)
 }

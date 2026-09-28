@@ -1,8 +1,12 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { obtenerCategorias, obtenerPlatillos } from "../Services/MenuService";
 import CarritoPedido from "@/components/pedidos/CarritoPedido";
 
 export default function TomaPedidos() {
+  const [searchParams] = useSearchParams();
+  const mesaIdParam = searchParams.get("mesaId");
+
   const [mesas, setMesas] = useState([]);
   const [mesaSeleccionada, setMesaSeleccionada] = useState(null);
   const [categorias, setCategorias] = useState([]);
@@ -14,15 +18,6 @@ export default function TomaPedidos() {
 
   const API_URL = "http://localhost:3000/api";
 
-  const obtenerMesaIdUrl = () => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      return params.get("mesaId");
-    } catch {
-      return null;
-    }
-  };
-
   useEffect(() => {
     let montado = true;
 
@@ -30,7 +25,10 @@ export default function TomaPedidos() {
       try {
         setCargando(true);
 
-        const resMesas = await fetch(`${API_URL}/mesas`).catch(() => null);
+        const token = localStorage.getItem("menugo_token");
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+        const resMesas = await fetch(`${API_URL}/mesas`, { headers }).catch(() => null);
         const catsData = await obtenerCategorias().catch(() => []);
         const platsData = await obtenerPlatillos().catch(() => []);
 
@@ -44,7 +42,6 @@ export default function TomaPedidos() {
           }
           setMesas(listaMesas);
 
-          const mesaIdParam = obtenerMesaIdUrl();
           if (mesaIdParam) {
             const encontrada = listaMesas.find(
               (m) => String(m.id) === String(mesaIdParam)
@@ -80,7 +77,7 @@ export default function TomaPedidos() {
     return () => {
       montado = false;
     };
-  }, []);
+  }, [mesaIdParam]);
 
   const platillosFiltrados =
     categoriaActiva === "todas"
@@ -128,7 +125,6 @@ export default function TomaPedidos() {
     );
   };
 
-  // Enviar comanda e INSERTAR en pedido_linea de la BD
   const handleEnviarComanda = async () => {
     if (!mesaSeleccionada) {
       alert("Debes seleccionar una mesa.");
@@ -142,6 +138,7 @@ export default function TomaPedidos() {
 
     try {
       setEnviando(true);
+      const token = localStorage.getItem("menugo_token");
 
       const payload = {
         mesaId: mesaSeleccionada.id,
@@ -155,7 +152,10 @@ export default function TomaPedidos() {
 
       const res = await fetch(`${API_URL}/pedidos`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
         body: JSON.stringify(payload),
       });
 

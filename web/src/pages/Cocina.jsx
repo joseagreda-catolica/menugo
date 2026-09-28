@@ -1,68 +1,47 @@
-import { useState, useEffect, useCallback } from 'react'
-import { getPedidosCocina, cambiarEstadoLinea } from '@/Services/pedidosService'
-import PedidoCocinaCard from '../components/cocina/PedidoCocinaCard' // Ajusta la ruta relativa según tu estructura
+import { useState, useEffect } from 'react'
+import { obtenerPedidos, actualizarEstadoLinea } from '@/Services/pedidosService'
+import PedidoCocinaCard from '../components/cocina/PedidoCocinaCard'
 
 export default function Cocina() {
   const [pedidos, setPedidos] = useState([])
-  const [cargando, setCargando] = useState(true)
-  const [error, setError] = useState(null)
+  const [filtroEstado, setFiltroEstado] = useState('todos')
 
-  const cargarPedidos = useCallback(async () => {
-    try {
-      const data = await getPedidosCocina()
-      setPedidos(data || [])
-      setError(null)
-    } catch (err) {
-      console.error('Error al cargar comandas de cocina:', err)
-      setError('No se pudieron obtener las comandas de cocina.')
-    } finally {
-      setCargando(false)
-    }
-  }, [])
+  const cargarPedidos = () => {
+    obtenerPedidos().then(setPedidos).catch(console.error)
+  }
 
   useEffect(() => {
-    let isMounted = true
-
-    const obtenerDatos = async () => {
-      try {
-        const data = await getPedidosCocina()
-        if (isMounted) {
-          setPedidos(data || [])
-          setError(null)
-        }
-      } catch (err) {
-        if (isMounted) {
-          console.error('Error al cargar comandas de cocina:', err)
-          setError('No se pudieron obtener las comandas de cocina.')
-        }
-      } finally {
-        if (isMounted) setCargando(false)
-      }
-    }
-
-    obtenerDatos()
-    const interval = setInterval(obtenerDatos, 10000)
-
-    return () => {
-      isMounted = false
-      clearInterval(interval)
-    }
+    cargarPedidos()
+    // RNF-05: la comanda debe verse en cocina en menos de 5 segundos.
+    // Polling cada 3s (sección 7.5 del documento).
+    const intervalo = setInterval(cargarPedidos, 3000)
+    return () => clearInterval(intervalo)
   }, [])
 
-  // Cambiar el estado de un platillo específico (PedidoLinea)
-  const handleCambiarEstadoLinea = async (lineaId, nuevoEstado) => {
-    try {
-      await cambiarEstadoLinea(lineaId, nuevoEstado)
-      cargarPedidos()
-    } catch (err) {
-      console.error('Error al actualizar platillo:', err)
-      alert('No se pudo actualizar el estado del platillo.')
-    }
+  // Aplanar: una tarjeta por LÍNEA, no por pedido completo
+  const tarjetas = pedidos
+    .filter((p) => p.estado === 'abierto')
+    .flatMap((p) =>
+      (p.lineas || [])
+        .filter((l) => l.estado !== 'anulada' && l.estado !== 'entregado')
+        .map((l) => ({
+          id: l.id,
+          mesaNumero: `Mesa ${p.sesionMesa?.mesa?.numero ?? ''}`,
+          estado: l.estado,
+          items: [{ cantidad: l.cantidad, nombre: l.platillo?.nombre, nota: l.notaPreparacion }],
+        }))
+    )
+
+  const handleCambiarEstado = (lineaId, nuevoEstado) => {
+    actualizarEstadoLinea(lineaId, nuevoEstado).then(cargarPedidos).catch(console.error)
   }
+
+  const pedidosFiltrados = filtroEstado === 'todos'
+    ? tarjetas
+    : tarjetas.filter((t) => t.estado === filtroEstado)
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* Encabezado */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Pantalla de Cocina 👨‍🍳</h1>
@@ -71,51 +50,40 @@ export default function Cocina() {
           </p>
         </div>
 
-        <button
-          onClick={cargarPedidos}
-          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl transition-colors cursor-pointer"
-        >
-          🔄 Actualizar ahora
-        </button>
+        {/* Filtros de estado */}
+        <div className="flex gap-2">
+          {['todos', 'pendiente', 'en_preparacion', 'listo'].map((est) => (
+            <button
+              key={est}
+              onClick={() => setFiltroEstado(est)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
+                filtroEstado === est
+                  ? 'bg-gray-800 text-white'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+              }`}
+            >
+              {est.replace('_', ' ')}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Indicador de Carga */}
-      {cargando && (
-        <div className="py-20 text-center text-gray-400 font-medium animate-pulse">
-          Cargando comandas de cocina...
+      {/* Grid de tarjetas por línea de pedido */}
+      {pedidosFiltrados.length === 0 ? (
+        <div className="py-20 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+          <span className="text-4xl block mb-2">🍽️</span>
+          <p className="text-gray-500 font-medium text-sm">No hay comandas activas en cocina.</p>
         </div>
-      )}
-
-      {/* Mensaje de Error */}
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex justify-between items-center">
-          <span>{error}</span>
-          <button onClick={cargarPedidos} className="underline font-bold text-xs hover:text-red-800">
-            Reintentar
-          </button>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {pedidosFiltrados.map((item) => (
+            <PedidoCocinaCard
+              key={item.id}
+              pedido={item}
+              onCambiarEstado={handleCambiarEstado}
+            />
+          ))}
         </div>
-      )}
-
-      {/* Grid de Comandas */}
-      {!cargando && !error && (
-        <>
-          {pedidos.length === 0 ? (
-            <div className="py-20 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-              <span className="text-4xl block mb-2">🍽️</span>
-              <p className="text-gray-500 font-medium text-sm">No hay comandas activas en cocina.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {pedidos.map((pedido) => (
-                <PedidoCocinaCard
-                  key={pedido.id}
-                  pedido={pedido}
-                  onCambiarEstadoLinea={handleCambiarEstadoLinea}
-                />
-              ))}
-            </div>
-          )}
-        </>
       )}
     </div>
   )

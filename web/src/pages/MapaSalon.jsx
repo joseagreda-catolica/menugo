@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { obtenerMesas } from '@/Services/mesasService'
 
 export default function MapaSalon() {
   const navigate = useNavigate()
@@ -9,58 +10,49 @@ export default function MapaSalon() {
   const [seccionFiltro, setSeccionFiltro] = useState('todas')
   const [busqueda, setBusqueda] = useState('')
 
-  // Estado para controlar el modal de cambio de estado / acciones de mesa
+  // Modal de cambio de estado / acciones
   const [mesaSeleccionada, setMesaSeleccionada] = useState(null)
   const [guardandoEstado, setGuardandoEstado] = useState(false)
 
   const API_URL = 'http://localhost:3000/api'
 
-  // Cargar mesas desde el backend
-  useEffect(() => {
-    let montado = true
-
-    const cargarMesasBD = async () => {
-      try {
-        setCargando(true)
-        const res = await fetch(`${API_URL}/mesas`)
-
-        if (res.ok && montado) {
-          const data = await res.json()
-          if (Array.isArray(data)) {
-            const mesasNormalizadas = data
-              .filter((m) => m.activa !== false)
-              .map((m) => ({
-                ...m,
-                id: m.id,
-                numero: String(m.numero),
-                seccion: m.seccion || m.ubicacion || 'Interior',
-                capacidad: m.capacidad || 4,
-                estado: m.estado || 'libre',
-              }))
-            setMesas(mesasNormalizadas)
-          }
-        }
-      } catch (error) {
-        console.error('Error al cargar mesas desde la API:', error)
-      } finally {
-        if (montado) setCargando(false)
+  // Función para cargar mesas desde la BD
+  const cargarMesasBD = useCallback(async () => {
+    try {
+      const data = await obtenerMesas()
+      if (Array.isArray(data)) {
+        const mesasNormalizadas = data
+          .filter((m) => m.activa !== false)
+          .map((m) => ({
+            ...m,
+            id: m.id,
+            numero: m.numero,
+            seccion: m.seccion || m.ubicacion || 'Interior',
+            capacidad: m.capacidad || 4,
+            estado: m.estado || 'libre',
+          }))
+        setMesas(mesasNormalizadas)
       }
-    }
-
-    cargarMesasBD()
-
-    return () => {
-      montado = false
+    } catch (error) {
+      console.error('Error al cargar mesas desde la API:', error)
+    } finally {
+      setCargando(false)
     }
   }, [])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    cargarMesasBD()
+  }, [cargarMesasBD])
 
   // Cambiar el estado de una mesa en la BD y en la interfaz
   const handleCambiarEstado = async (nuevoEstado) => {
     if (!mesaSeleccionada) return
 
     const mesaId = mesaSeleccionada.id
+    const token = localStorage.getItem('menugo_token')
 
-    // Actualización optimista en interfaz
+    // Actualización optimista
     setMesas((prev) =>
       prev.map((m) => (m.id === mesaId ? { ...m, estado: nuevoEstado } : m))
     )
@@ -70,12 +62,15 @@ export default function MapaSalon() {
       setGuardandoEstado(true)
       await fetch(`${API_URL}/mesas/${mesaId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           estado: nuevoEstado,
-          activa: nuevoEstado !== 'inactiva',
         }),
       })
+      await cargarMesasBD()
     } catch (error) {
       console.error('Error al actualizar el estado de la mesa:', error)
       alert('No se pudo actualizar el estado en el servidor.')
@@ -84,6 +79,7 @@ export default function MapaSalon() {
     }
   }
 
+  // Configuración de estilos e indicadores según estados reales del backend
   const configEstado = {
     libre: {
       bg: 'bg-white',
@@ -94,7 +90,7 @@ export default function MapaSalon() {
       badge: 'bg-emerald-100 text-emerald-700',
       indicador: 'bg-emerald-500',
       etiqueta: 'Libre',
-      accion: 'Opciones',
+      accion: 'Ver Opciones',
       textoAccion: 'text-emerald-600',
     },
 
@@ -107,11 +103,24 @@ export default function MapaSalon() {
       badge: 'bg-orange-100 text-orange-700',
       indicador: 'bg-orange-500',
       etiqueta: 'Ocupada',
-      accion: 'Opciones',
+      accion: 'Ver Opciones',
       textoAccion: 'text-orange-600',
     },
 
-    cuenta_pedida: {
+    pedido_en_curso: {
+      bg: 'bg-white',
+      border: 'border-blue-300',
+      hover: 'hover:border-blue-500 hover:shadow-blue-100',
+      iconBg: 'bg-blue-100',
+      iconColor: 'text-blue-600',
+      badge: 'bg-blue-100 text-blue-800',
+      indicador: 'bg-blue-500',
+      etiqueta: 'Pedido en curso',
+      accion: 'Ver Pedido',
+      textoAccion: 'text-blue-600',
+    },
+
+    pendiente_cobro: {
       bg: 'bg-white',
       border: 'border-amber-300',
       hover: 'hover:border-amber-500 hover:shadow-amber-100',
@@ -119,22 +128,9 @@ export default function MapaSalon() {
       iconColor: 'text-amber-600',
       badge: 'bg-amber-100 text-amber-800',
       indicador: 'bg-amber-500',
-      etiqueta: 'Cuenta pedida',
-      accion: 'Opciones',
+      etiqueta: 'Pendiente de cobro',
+      accion: 'Ir a Cobro',
       textoAccion: 'text-amber-700',
-    },
-
-    reservada: {
-      bg: 'bg-white',
-      border: 'border-sky-200',
-      hover: 'hover:border-sky-400 hover:shadow-sky-100',
-      iconBg: 'bg-sky-100',
-      iconColor: 'text-sky-600',
-      badge: 'bg-sky-100 text-sky-700',
-      indicador: 'bg-sky-500',
-      etiqueta: 'Reservada',
-      accion: 'Opciones',
-      textoAccion: 'text-sky-600',
     },
   }
 
@@ -154,12 +150,13 @@ export default function MapaSalon() {
     return coincideSeccion && coincideBusqueda
   })
 
+  // Métricas del turno actual
   const totalLibres = mesas.filter((mesa) => mesa.estado === 'libre').length
   const totalOcupadas = mesas.filter(
-    (mesa) => mesa.estado === 'ocupada' || mesa.estado === 'cuenta_pedida'
+    (mesa) => mesa.estado === 'ocupada' || mesa.estado === 'pedido_en_curso'
   ).length
-  const totalReservadas = mesas.filter(
-    (mesa) => mesa.estado === 'reservada'
+  const totalPendienteCobro = mesas.filter(
+    (mesa) => mesa.estado === 'pendiente_cobro'
   ).length
 
   return (
@@ -186,7 +183,7 @@ export default function MapaSalon() {
                 </div>
               </div>
               <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-400">
-                Selecciona cualquier mesa para cambiar su estado (Libre, Ocupada, Reservada) o para abrir la toma de pedidos.
+                Selecciona cualquier mesa para cambiar su estado o ingresar directamente a la toma de pedidos.
               </p>
             </div>
 
@@ -217,14 +214,14 @@ export default function MapaSalon() {
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-center backdrop-blur">
-                <div className="mx-auto mb-1 flex h-8 w-8 items-center justify-center rounded-xl bg-sky-500/20">
-                  <span className="text-sky-400">●</span>
+                <div className="mx-auto mb-1 flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/20">
+                  <span className="text-amber-400">●</span>
                 </div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Reservadas
+                  Por Cobrar
                 </p>
-                <p className="text-2xl font-black text-sky-400">
-                  {totalReservadas}
+                <p className="text-2xl font-black text-amber-400">
+                  {totalPendienteCobro}
                 </p>
               </div>
             </div>
@@ -322,16 +319,16 @@ export default function MapaSalon() {
             </div>
 
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+              <span className="h-2.5 w-2.5 rounded-full bg-blue-500 shadow-[0_0_0_4px_rgba(59,130,246,0.12)]" />
+              Pedido en curso
+            </div>
+
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
               <span className="relative flex h-2.5 w-2.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-60" />
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
               </span>
-              Cuenta pedida
-            </div>
-
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-              <span className="h-2.5 w-2.5 rounded-full bg-sky-500 shadow-[0_0_0_4px_rgba(14,165,233,0.12)]" />
-              Reservada
+              Pendiente de cobro
             </div>
           </div>
 
@@ -385,7 +382,7 @@ export default function MapaSalon() {
                         Mesa
                       </span>
                       <h3 className="mt-0.5 text-3xl font-black tracking-tight text-slate-900">
-                        {mesa.numero}
+                        Mesa {mesa.numero}
                       </h3>
                     </div>
 
@@ -549,7 +546,7 @@ export default function MapaSalon() {
             {/* SELECCIÓN DE ESTADO */}
             <div className="space-y-3">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Cambiar Estado
+                Cambiar Estado Manual
               </label>
 
               <div className="grid grid-cols-2 gap-2">
@@ -581,28 +578,28 @@ export default function MapaSalon() {
 
                 <button
                   disabled={guardandoEstado}
-                  onClick={() => handleCambiarEstado('cuenta_pedida')}
+                  onClick={() => handleCambiarEstado('pedido_en_curso')}
                   className={`flex items-center justify-between rounded-2xl p-3 border text-xs font-bold transition cursor-pointer ${
-                    mesaSeleccionada.estado === 'cuenta_pedida'
-                      ? 'border-amber-500 bg-amber-50 text-amber-800 ring-2 ring-amber-500/20'
+                    mesaSeleccionada.estado === 'pedido_en_curso'
+                      ? 'border-blue-500 bg-blue-50 text-blue-800 ring-2 ring-blue-500/20'
                       : 'border-slate-200 hover:bg-slate-50 text-slate-700'
                   }`}
                 >
-                  <span>🟡 Cuenta Pedida</span>
-                  {mesaSeleccionada.estado === 'cuenta_pedida' && <span>✓</span>}
+                  <span>🔵 En Curso</span>
+                  {mesaSeleccionada.estado === 'pedido_en_curso' && <span>✓</span>}
                 </button>
 
                 <button
                   disabled={guardandoEstado}
-                  onClick={() => handleCambiarEstado('reservada')}
+                  onClick={() => handleCambiarEstado('pendiente_cobro')}
                   className={`flex items-center justify-between rounded-2xl p-3 border text-xs font-bold transition cursor-pointer ${
-                    mesaSeleccionada.estado === 'reservada'
-                      ? 'border-sky-500 bg-sky-50 text-sky-800 ring-2 ring-sky-500/20'
+                    mesaSeleccionada.estado === 'pendiente_cobro'
+                      ? 'border-amber-500 bg-amber-50 text-amber-800 ring-2 ring-amber-500/20'
                       : 'border-slate-200 hover:bg-slate-50 text-slate-700'
                   }`}
                 >
-                  <span>🔵 Reservada</span>
-                  {mesaSeleccionada.estado === 'reservada' && <span>✓</span>}
+                  <span>🟡 Por Cobrar</span>
+                  {mesaSeleccionada.estado === 'pendiente_cobro' && <span>✓</span>}
                 </button>
               </div>
             </div>
@@ -620,7 +617,7 @@ export default function MapaSalon() {
                 📝 Ir a Tomar Pedido
               </button>
 
-              {mesaSeleccionada.estado === 'cuenta_pedida' && (
+              {mesaSeleccionada.estado === 'pendiente_cobro' && (
                 <button
                   onClick={() => {
                     setMesaSeleccionada(null)
