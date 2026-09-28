@@ -86,21 +86,31 @@ router.post('/', async (req, res) => {
           data: {
             mesaId: idMesa,
             meseroId: idMeseroFinal,
-            estado: 'ocupada',
+            estado: 'pedido_en_curso',
             abiertaEn: new Date(),
           },
         });
-      } else {
+      } else if (sesionActiva.estado === 'ocupada') {
         await tx.sesionMesa.update({
           where: { id: sesionActiva.id },
           data: { estado: 'pedido_en_curso' },
         });
       }
 
-      // 3. Calcular el total del pedido actual
+      // 2.5. Resolver el precio VIGENTE de cada platillo en el servidor
+      // (RF-04): nunca se confia en un precio que mande el cliente, para que
+      // un pedido conserve el precio real del momento en que se hizo.
+      const idsPlatillos = [...new Set(listaPlatillos.map((l) => Number(l.platilloId || l.id || l.productoId)))];
+      const preciosVigentes = await tx.precioHistorico.findMany({
+        where: { platilloId: { in: idsPlatillos }, vigenteHasta: null },
+      });
+      const precioPorPlatillo = new Map(preciosVigentes.map((p) => [p.platilloId, Number(p.precio)]));
+
+      // 3. Calcular el total del pedido actual con el precio resuelto arriba
       const totalPedidoActual = listaPlatillos.reduce((acumulado, item) => {
         const cant = Number(item.cantidad || 1);
-        const precio = Number(item.precioUnitario || item.precio || 0);
+        const platilloId = Number(item.platilloId || item.id || item.productoId);
+        const precio = precioPorPlatillo.get(platilloId) || 0;
         return acumulado + cant * precio;
       }, 0);
 
@@ -132,13 +142,16 @@ router.post('/', async (req, res) => {
           meseroId: idMeseroFinal,
           estado: 'abierto',
           lineas: {
-            create: listaPlatillos.map((linea) => ({
-              platilloId: Number(linea.platilloId || linea.id || linea.productoId),
-              cantidad: Number(linea.cantidad || 1),
-              precioUnitario: Number(linea.precioUnitario || linea.precio || 0),
-              notaPreparacion: String(linea.notaPreparacion || linea.notas || linea.nota || notas || '').substring(0, 200),
-              estado: 'pendiente',
-            })),
+            create: listaPlatillos.map((linea) => {
+              const platilloId = Number(linea.platilloId || linea.id || linea.productoId);
+              return {
+                platilloId,
+                cantidad: Number(linea.cantidad || 1),
+                precioUnitario: precioPorPlatillo.get(platilloId) || 0,
+                notaPreparacion: String(linea.notaPreparacion || linea.notas || linea.nota || notas || '').substring(0, 200),
+                estado: 'pendiente',
+              };
+            }),
           },
         },
         include: {
