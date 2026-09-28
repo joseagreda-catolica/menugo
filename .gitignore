@@ -25,3 +25,6 @@ Thumbs.db
 
 # Prisma
 *.db
+
+# Imagenes subidas localmente cuando Cloudinary no esta configurado
+api/public/uploads/

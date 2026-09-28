@@ -1,0 +1,263 @@
+const { Router } = require('express');
+const prisma = require('../lib/prisma');
+const requireAuth = require('../middlewares/auth.middleware');
+const requireRole = require('../middlewares/role.middleware');
+const bitacoraService = require('../services/bitacora.service');
+
+const router = Router();
+
+// RF-28/RF-29: mesero levanta pedidos, cocinero cambia el estado de preparacion.
+router.use(requireAuth, requireRole('administrador', 'mesero', 'cocinero'));
+
+// ============================================================================
+// 1. GET /api/pedidos - Consultar comandas para la Cocina (KDS)
+// ============================================================================
+router.get('/', async (req, res) => {
+  try {
+    const pedidos = await prisma.pedido.findMany({
+      include: {
+        lineas: {
+          include: {
+            platillo: true,
+          },
+        },
+        sesionMesa: {
+          include: {
+            mesa: true,
+          },
+        },
+        mesero: {
+          select: {
+            id: true,
+            nombreCompleto: true,
+          },
+        },
+      },
+      orderBy: {
+        abiertoEn: 'desc',
+      },
+    });
+
+    res.json(pedidos);
+  } catch (error) {
+    console.error('=== ERROR EN GET /api/pedidos ===');
+    console.error(error);
+
+    res.status(500).json({
+      error: 'Error al consultar las comandas de cocina.',
+      detalle: error.message,
+    });
+  }
+});
+
+// ============================================================================
+// 2. POST /api/pedidos - Registrar comanda desde TomaPedidos (POS)
+// ============================================================================
+router.post('/', async (req, res) => {
+  try {
+    const { mesaId, meseroId, lineas, items, platillos, productos, detalles, notas } = req.body;
+    const idMesa = Number(mesaId);
+
+    // Detección flexible de la lista de platillos del carrito
+    const listaPlatillos = lineas || items || platillos || productos || detalles || [];
+
+    if (isNaN(idMesa)) {
+      return res.status(400).json({ error: 'El ID de la mesa no es válido.' });
+    }
+
+    if (!Array.isArray(listaPlatillos) || listaPlatillos.length === 0) {
+      return res.status(400).json({ error: 'El pedido debe contener al menos un platillo.' });
+    }
+
+    const resultado = await prisma.$transaction(async (tx) => {
+      // RNF-07: bloquea la fila de la mesa antes de leer su sesion activa, para
+      // que dos meseros no puedan abrir la misma mesa al mismo tiempo (la
+      // segunda transaccion espera aqui hasta que la primera confirme, y
+      // entonces ve la sesion recien creada en vez de crear una duplicada).
+      await tx.$queryRaw`SELECT id FROM mesa WHERE id = ${idMesa} FOR UPDATE`;
+
+      // 1. Obtener un mesero válido (meseroId es campo obligatorio en Pedido y SesionMesa)
+      let idMeseroFinal = Number(meseroId);
+      if (isNaN(idMeseroFinal)) {
+        const usuarioExistente = await tx.usuario.findFirst({ where: { activo: true } });
+        idMeseroFinal = usuarioExistente ? usuarioExistente.id : 1;
+      }
+
+      // 2. Buscar o crear la SesionMesa activa
+      let sesionActiva = await tx.sesionMesa.findFirst({
+        where: { mesaId: idMesa, cerradaEn: null },
+      });
+
+      if (!sesionActiva) {
+        sesionActiva = await tx.sesionMesa.create({
+          data: {
+            mesaId: idMesa,
+            meseroId: idMeseroFinal,
+            estado: 'pedido_en_curso',
+            abiertaEn: new Date(),
+          },
+        });
+      } else if (sesionActiva.estado === 'ocupada') {
+        await tx.sesionMesa.update({
+          where: { id: sesionActiva.id },
+          data: { estado: 'pedido_en_curso' },
+        });
+      }
+
+      // 2.5. Resolver el precio VIGENTE de cada platillo en el servidor
+      // (RF-04): nunca se confia en un precio que mande el cliente, para que
+      // un pedido conserve el precio real del momento en que se hizo.
+      const idsPlatillos = [...new Set(listaPlatillos.map((l) => Number(l.platilloId || l.id || l.productoId)))];
+      const preciosVigentes = await tx.precioHistorico.findMany({
+        where: { platilloId: { in: idsPlatillos }, vigenteHasta: null },
+      });
+      const precioPorPlatillo = new Map(preciosVigentes.map((p) => [p.platilloId, Number(p.precio)]));
+
+      // 3. Calcular el total del pedido actual con el precio resuelto arriba
+      const totalPedidoActual = listaPlatillos.reduce((acumulado, item) => {
+        const cant = Number(item.cantidad || 1);
+        const platilloId = Number(item.platilloId || item.id || item.productoId);
+        const precio = precioPorPlatillo.get(platilloId) || 0;
+        return acumulado + cant * precio;
+      }, 0);
+
+      // 4. Crear o actualizar la Cuenta (asociada a sesionMesaId)
+      let cuenta = await tx.cuenta.findFirst({
+        where: { sesionMesaId: sesionActiva.id, cerradaEn: null },
+      });
+
+      if (!cuenta) {
+        cuenta = await tx.cuenta.create({
+          data: {
+            sesionMesaId: sesionActiva.id,
+            total: totalPedidoActual,
+          },
+        });
+      } else {
+        cuenta = await tx.cuenta.update({
+          where: { id: cuenta.id },
+          data: {
+            total: Number(cuenta.total) + totalPedidoActual,
+          },
+        });
+      }
+
+      // 5. Crear el Pedido y sus líneas usando las columnas exactas del schema.prisma
+      const nuevoPedido = await tx.pedido.create({
+        data: {
+          sesionMesaId: sesionActiva.id,
+          meseroId: idMeseroFinal,
+          estado: 'abierto',
+          lineas: {
+            create: listaPlatillos.map((linea) => {
+              const platilloId = Number(linea.platilloId || linea.id || linea.productoId);
+              return {
+                platilloId,
+                cantidad: Number(linea.cantidad || 1),
+                precioUnitario: precioPorPlatillo.get(platilloId) || 0,
+                notaPreparacion: String(linea.notaPreparacion || linea.notas || linea.nota || notas || '').substring(0, 200),
+                estado: 'pendiente',
+              };
+            }),
+          },
+        },
+        include: {
+          lineas: {
+            include: {
+              platillo: true,
+            },
+          },
+          mesero: {
+            select: {
+              id: true,
+              nombreCompleto: true,
+            },
+          },
+        },
+      });
+
+      return { pedido: nuevoPedido, sesionMesa: sesionActiva, cuenta };
+    });
+
+    res.status(201).json({ ok: true, ...resultado });
+  } catch (error) {
+    console.error('=== ERROR AL REGISTRAR PEDIDO ===');
+    console.error(error);
+
+    res.status(500).json({
+      error: 'Error interno al procesar el pedido.',
+      detalle: error.message,
+    });
+  }
+});
+
+// ============================================================================
+// 3. PATCH /api/pedidos/lineas/:id/estado - Actualizar estado de platillo (Cocina)
+// ============================================================================
+router.patch('/lineas/:id/estado', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { estado } = req.body; // Valores válidos: 'pendiente', 'en_preparacion', 'listo', 'entregado', 'anulada'
+
+    const lineaActualizada = await prisma.pedidoLinea.update({
+      where: { id: Number(id) },
+      data: { estado },
+    });
+
+    res.json({ ok: true, linea: lineaActualizada });
+  } catch (error) {
+    console.error('=== ERROR AL ACTUALIZAR LINEA ===', error);
+    res.status(500).json({
+      error: 'Error al cambiar el estado del platillo.',
+      detalle: error.message,
+    });
+  }
+});
+
+// ============================================================================
+// 4. PATCH /api/pedidos/:id/estado - Actualizar estado general de la comanda
+// ============================================================================
+router.patch('/:id/estado', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { estado, motivo } = req.body; // Valores válidos: 'abierto', 'cerrado', 'anulado'
+    const idPedido = Number(id);
+
+    // RF-16: anular un pedido exige motivo y deja constancia de quien lo hizo.
+    if (estado === 'anulado') {
+      if (!motivo) {
+        return res.status(400).json({ error: 'Anular un pedido requiere indicar el motivo.' });
+      }
+
+      const pedidoAnulado = await prisma.pedido.update({
+        where: { id: idPedido },
+        data: { estado: 'anulado', motivoAnulacion: motivo, anuladoPor: req.usuario.id },
+      });
+
+      await bitacoraService.registrar({
+        usuarioId: req.usuario.id,
+        accion: 'anulacion_pedido',
+        entidad: 'pedido',
+        entidadId: idPedido,
+        detalle: { motivo },
+      });
+
+      return res.json({ ok: true, pedido: pedidoAnulado });
+    }
+
+    const pedidoActualizado = await prisma.pedido.update({
+      where: { id: idPedido },
+      data: { estado },
+    });
+
+    res.json({ ok: true, pedido: pedidoActualizado });
+  } catch (error) {
+    console.error('=== ERROR AL ACTUALIZAR PEDIDO ===', error);
+    res.status(500).json({
+      error: 'Error al cambiar el estado del pedido.',
+      detalle: error.message,
+    });
+  }
+});
+
+module.exports = router;

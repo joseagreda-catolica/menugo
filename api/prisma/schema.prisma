@@ -1,0 +1,242 @@
+// Traduccion directa del modelo de datos aprobado (ver /docs/modelo-datos.md
+// y /docs/diccionario-datos.md). Ningun campo se agrega aqui que no este ya
+// documentado ahi.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Rol {
+  administrador
+  mesero
+  cocinero
+  cajero
+}
+
+enum EstadoSesionMesa {
+  ocupada
+  pedido_en_curso
+  pendiente_cobro
+  cerrada
+}
+
+enum EstadoPedido {
+  abierto
+  cerrado
+  anulado
+}
+
+enum EstadoPedidoLinea {
+  pendiente
+  en_preparacion
+  listo
+  entregado
+  anulada
+}
+
+enum FormaPago {
+  efectivo
+  tarjeta
+  otro
+}
+
+model Usuario {
+  id             Int      @id @default(autoincrement())
+  nombreCompleto String   @map("nombre_completo") @db.VarChar(120)
+  email          String   @unique @db.VarChar(150)
+  passwordHash   String   @map("password_hash") @db.VarChar(255)
+  rol            Rol
+  activo         Boolean  @default(true)
+  creadoEn       DateTime @default(now()) @map("creado_en")
+
+  sesionesAbiertas  SesionMesa[] @relation("MeseroAbreSesion")
+  pedidosLevantados Pedido[]     @relation("MeseroLevantaPedido")
+  pedidosAnulados   Pedido[]     @relation("UsuarioAnulaPedido")
+  cuentasCerradas   Cuenta[]     @relation("CajeroCierraCuenta")
+  cortesCaja        CorteCaja[]
+  bitacora          Bitacora[]
+
+  @@map("usuario")
+}
+
+model Categoria {
+  id          Int        @id @default(autoincrement())
+  nombre      String     @unique @db.VarChar(60)
+  descripcion String?
+  orden       Int        @default(0) @db.SmallInt
+  activa      Boolean    @default(true)
+  platillos   Platillo[]
+
+  @@map("categoria")
+}
+
+model Platillo {
+  id                   Int     @id @default(autoincrement())
+  categoriaId          Int     @map("categoria_id")
+  nombre               String  @db.VarChar(100)
+  descripcion          String?
+  fotoUrl              String? @map("foto_url") @db.VarChar(300)
+  tiempoPreparacionMin Int     @default(10) @map("tiempo_preparacion_min") @db.SmallInt
+  disponible           Boolean @default(true)
+  orden                Int     @default(0) @db.SmallInt
+  activo               Boolean @default(true)
+
+  categoria         Categoria         @relation(fields: [categoriaId], references: [id])
+  preciosHistoricos PrecioHistorico[]
+  lineasPedido      PedidoLinea[]
+
+  @@map("platillo")
+}
+
+model PrecioHistorico {
+  id           Int       @id @default(autoincrement())
+  platilloId   Int       @map("platillo_id")
+  precio       Decimal   @db.Decimal(8, 2)
+  vigenteDesde DateTime  @default(now()) @map("vigente_desde")
+  vigenteHasta DateTime? @map("vigente_hasta")
+
+  platillo Platillo @relation(fields: [platilloId], references: [id])
+
+  @@map("precio_historico")
+}
+
+model Mesa {
+  id        Int     @id @default(autoincrement())
+  numero    Int     @unique @db.SmallInt
+  capacidad Int     @db.SmallInt
+  ubicacion String? @db.VarChar(60)
+  activa    Boolean @default(true)
+
+  sesiones SesionMesa[]
+
+  @@map("mesa")
+}
+
+model SesionMesa {
+  id            Int              @id @default(autoincrement())
+  mesaId        Int              @map("mesa_id")
+  meseroId      Int              @map("mesero_id")
+  estado        EstadoSesionMesa @default(ocupada)
+  abiertaEn     DateTime         @default(now()) @map("abierta_en")
+  cerradaEn     DateTime?        @map("cerrada_en")
+  numComensales Int?             @map("num_comensales") @db.SmallInt
+
+  mesa    Mesa     @relation(fields: [mesaId], references: [id])
+  mesero  Usuario  @relation("MeseroAbreSesion", fields: [meseroId], references: [id])
+  pedidos Pedido[]
+  cuenta  Cuenta?
+
+  @@map("sesion_mesa")
+}
+
+model Pedido {
+  id              Int          @id @default(autoincrement())
+  sesionMesaId    Int          @map("sesion_mesa_id")
+  meseroId        Int          @map("mesero_id")
+  estado          EstadoPedido @default(abierto)
+  abiertoEn       DateTime     @default(now()) @map("abierto_en")
+  cerradoEn       DateTime?    @map("cerrado_en")
+  motivoAnulacion String?      @map("motivo_anulacion")
+  anuladoPor      Int?         @map("anulado_por")
+
+  sesionMesa SesionMesa    @relation(fields: [sesionMesaId], references: [id])
+  mesero     Usuario       @relation("MeseroLevantaPedido", fields: [meseroId], references: [id])
+  anulador   Usuario?      @relation("UsuarioAnulaPedido", fields: [anuladoPor], references: [id])
+  lineas     PedidoLinea[]
+
+  @@map("pedido")
+}
+
+model PedidoLinea {
+  id              Int               @id @default(autoincrement())
+  pedidoId        Int               @map("pedido_id")
+  platilloId      Int               @map("platillo_id")
+  cantidad        Int               @db.SmallInt
+  precioUnitario  Decimal           @map("precio_unitario") @db.Decimal(8, 2)
+  notaPreparacion String?           @map("nota_preparacion") @db.VarChar(200)
+  estado          EstadoPedidoLinea @default(pendiente)
+  creadaEn        DateTime          @default(now()) @map("creada_en")
+  actualizadaEn   DateTime          @updatedAt @map("actualizada_en")
+
+  pedido   Pedido   @relation(fields: [pedidoId], references: [id])
+  platillo Platillo @relation(fields: [platilloId], references: [id])
+
+  @@map("pedido_linea")
+}
+
+model Cuenta {
+  id           Int       @id @default(autoincrement())
+  sesionMesaId Int       @unique @map("sesion_mesa_id")
+  total        Decimal   @db.Decimal(9, 2)
+  creadaEn     DateTime  @default(now()) @map("creada_en")
+  cerradaEn    DateTime? @map("cerrada_en")
+  cajeroId     Int?      @map("cajero_id")
+
+  sesionMesa SesionMesa       @relation(fields: [sesionMesaId], references: [id])
+  cajero     Usuario?         @relation("CajeroCierraCuenta", fields: [cajeroId], references: [id])
+  divisiones CuentaDivision[]
+
+  @@map("cuenta")
+}
+
+model CuentaDivision {
+  id       Int     @id @default(autoincrement())
+  cuentaId Int     @map("cuenta_id")
+  etiqueta String  @db.VarChar(40)
+  monto    Decimal @db.Decimal(9, 2)
+
+  cuenta Cuenta @relation(fields: [cuentaId], references: [id])
+  pagos  Pago[]
+
+  @@map("cuenta_division")
+}
+
+model Pago {
+  id               Int       @id @default(autoincrement())
+  cuentaDivisionId Int       @map("cuenta_division_id")
+  formaPago        FormaPago @map("forma_pago")
+  monto            Decimal   @db.Decimal(9, 2)
+  pagadoEn         DateTime  @default(now()) @map("pagado_en")
+  corteCajaId      Int?      @map("corte_caja_id")
+
+  cuentaDivision CuentaDivision @relation(fields: [cuentaDivisionId], references: [id])
+  corteCaja      CorteCaja?     @relation(fields: [corteCajaId], references: [id])
+
+  @@map("pago")
+}
+
+model CorteCaja {
+  id            Int       @id @default(autoincrement())
+  cajeroId      Int       @map("cajero_id")
+  turnoFecha    DateTime  @map("turno_fecha") @db.Date
+  abiertoEn     DateTime  @map("abierto_en")
+  cerradoEn     DateTime? @map("cerrado_en")
+  totalEfectivo Decimal   @default(0) @map("total_efectivo") @db.Decimal(10, 2)
+  totalTarjeta  Decimal   @default(0) @map("total_tarjeta") @db.Decimal(10, 2)
+  totalOtro     Decimal   @default(0) @map("total_otro") @db.Decimal(10, 2)
+  totalGeneral  Decimal   @default(0) @map("total_general") @db.Decimal(10, 2)
+
+  cajero Usuario @relation(fields: [cajeroId], references: [id])
+  pagos  Pago[]
+
+  @@map("corte_caja")
+}
+
+model Bitacora {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int      @map("usuario_id")
+  accion    String   @db.VarChar(40)
+  entidad   String   @db.VarChar(40)
+  entidadId Int      @map("entidad_id")
+  detalle   Json?
+  creadoEn  DateTime @default(now()) @map("creado_en")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@map("bitacora")
+}
