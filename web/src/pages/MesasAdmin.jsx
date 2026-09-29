@@ -17,25 +17,42 @@ export default function MesasAdmin() {
 
   const API_URL = 'http://localhost:3000/api';
 
+  // Función auxiliar para obtener las cabeceras con el token JWT
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('menugo_token');
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : '',
+    };
+  };
+
   useEffect(() => {
     let montado = true;
 
     const obtenerDatos = async () => {
       setCargando(true);
       try {
+        const headers = getAuthHeaders();
+
         const [resMesas, resSecs] = await Promise.all([
-          fetch(`${API_URL}/mesas`),
-          fetch(`${API_URL}/secciones`),
+          fetch(`${API_URL}/mesas`, { headers }),
+          fetch(`${API_URL}/secciones`, { headers }),
         ]);
 
         if (resMesas.ok && montado) {
           const dataMesas = await resMesas.json();
-          setMesas(Array.isArray(dataMesas) ? dataMesas : []);
+          const listaMesas = Array.isArray(dataMesas)
+            ? dataMesas
+            : dataMesas.data || [];
+          setMesas(listaMesas);
         }
 
         if (resSecs.ok && montado) {
           const dataSecs = await resSecs.json();
-          setSecciones(Array.isArray(dataSecs) ? dataSecs : []);
+          const listaSecs = Array.isArray(dataSecs)
+            ? dataSecs
+            : dataSecs.data || [];
+          setSecciones(listaSecs);
         }
       } catch (error) {
         console.error('Error al cargar datos:', error);
@@ -62,7 +79,7 @@ export default function MesasAdmin() {
       setGuardando(true);
 
       const payload = {
-        numero, // El backend lo convertirá automáticamente a Int
+        numero: Number(numero),
         capacidad: Number(capacidad),
         ubicacion: String(ubicacion),
         activa: true,
@@ -76,7 +93,7 @@ export default function MesasAdmin() {
 
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(payload),
       });
 
@@ -119,7 +136,7 @@ export default function MesasAdmin() {
     try {
       const res = await fetch(`${API_URL}/mesas/${mesa.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ activa: !mesa.activa }),
       });
 
@@ -140,6 +157,7 @@ export default function MesasAdmin() {
     try {
       const res = await fetch(`${API_URL}/mesas/${id}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
       });
 
       if (res.ok) {

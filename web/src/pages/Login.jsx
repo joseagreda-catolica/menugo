@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext"; // Asegúrate de que la ruta sea correcta
 
 function Login() {
   const [correo, setCorreo] = useState("");
@@ -8,6 +9,7 @@ function Login() {
   const [cargando, setCargando] = useState(false);
 
   const navigate = useNavigate();
+  const { login } = useAuth(); // Llamada directa e incondicional al Hook
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -41,10 +43,22 @@ function Login() {
         throw new Error(mensajeError);
       }
 
-      if (data.token) {
-        localStorage.setItem("menugo_token", data.token);
+      const token = data.token || data.data?.token;
+      const usuario = data.usuario || data.user || data.data?.usuario;
+
+      if (!token) {
+        throw new Error("No se recibió un token de autenticación válido.");
       }
 
+      // Guardar token localmente
+      localStorage.setItem("menugo_token", token);
+
+      // Actualizar el estado global con AuthContext
+      if (login) {
+        await login(usuario, token);
+      }
+
+      // Redirigir a la vista de mapa-salon
       navigate("/mapa-salon");
     } catch (err) {
       setError(err.message || "Error al conectar con el servidor");
