@@ -6,11 +6,10 @@ import { useAuth } from '@/context/AuthContext'
 // sin importar como se escriba aqui, para no repetir el desajuste de mayusculas
 // que causaba que todo usuario real fuera rechazado.
 export default function RutaProtegida({ rolesPermitidos }) {
-  // Quitamos "token" porque el AuthContext actual solo tiene "usuario"
-  const { usuario } = useAuth()
+  const { usuario, token } = useAuth()
 
-  // 1. Si no hay usuario autenticado, redirige al Login
-  if (!usuario) {
+  // 1. Si no hay usuario o token autenticado, redirige al Login
+  if (!usuario || !token) {
     return <Navigate to="/login" replace />
   }
 

@@ -33,12 +33,16 @@ const disponibilidadSchema = z.object({
   disponible: z.boolean(),
 });
 
-router.use(requireAuth, requireRole('administrador'));
+router.use(requireAuth);
 
-router.get('/', platilloController.listar);
-router.post('/', validate(crearSchema), platilloController.crear);
-router.patch('/:id', validate(actualizarSchema), platilloController.actualizar);
-router.patch('/:id/disponibilidad', validate(disponibilidadSchema), platilloController.actualizarDisponibilidad);
-router.post('/:id/imagen', upload.single('imagen'), platilloController.subirImagen);
+// Consultar la carta requiere estar autenticado, pero no ser administrador:
+// mesero y cocinero tambien necesitan ver los platillos (RF-13, RF-17).
+router.get('/', requireRole('administrador', 'mesero', 'cocinero', 'cajero'), platilloController.listar);
+
+// Administrar la carta (crear, editar, imagen) si es exclusivo del administrador.
+router.post('/', requireRole('administrador'), validate(crearSchema), platilloController.crear);
+router.patch('/:id', requireRole('administrador'), validate(actualizarSchema), platilloController.actualizar);
+router.patch('/:id/disponibilidad', requireRole('administrador'), validate(disponibilidadSchema), platilloController.actualizarDisponibilidad);
+router.post('/:id/imagen', requireRole('administrador'), upload.single('imagen'), platilloController.subirImagen);
 
 module.exports = router;

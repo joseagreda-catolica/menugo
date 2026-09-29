@@ -21,10 +21,11 @@ const actualizarSchema = z.object({
   activa: z.boolean().optional(),
 });
 
-router.use(requireAuth, requireRole('administrador'));
+router.use(requireAuth);
 
-router.get('/', categoriaController.listar);
-router.post('/', validate(crearSchema), categoriaController.crear);
-router.patch('/:id', validate(actualizarSchema), categoriaController.actualizar);
+// Igual que en platillos: consultar categorias no es exclusivo de administrador.
+router.get('/', requireRole('administrador', 'mesero', 'cocinero', 'cajero'), categoriaController.listar);
+router.post('/', requireRole('administrador'), validate(crearSchema), categoriaController.crear);
+router.patch('/:id', requireRole('administrador'), validate(actualizarSchema), categoriaController.actualizar);
 
 module.exports = router;

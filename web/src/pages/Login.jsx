@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 
 function Login() {
   const [correo, setCorreo] = useState("");
@@ -8,6 +9,7 @@ function Login() {
   const [cargando, setCargando] = useState(false);
 
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -41,9 +43,10 @@ function Login() {
         throw new Error(mensajeError);
       }
 
-      if (data.token) {
-        localStorage.setItem("menugo_token", data.token);
-      }
+      // Guarda el usuario y el token en el AuthContext (no solo en
+      // localStorage) -- RutaProtegida decide el acceso por rol leyendo
+      // esto del contexto, no de localStorage directamente.
+      login(data.usuario, data.token);
 
       navigate("/mapa-salon");
     } catch (err) {
