@@ -1,36 +1,94 @@
-export const MOCK_CATEGORIAS = [
-  { id: '1', nombre: 'Entradas' },
-  { id: '2', nombre: 'Platos Fuertes' },
-  { id: '3', nombre: 'Bebidas' },
-  { id: '4', nombre: 'Postres' }
-]
+const API_URL = 'http://localhost:3000/api'
 
-export const MOCK_PLATILLOS = [
-  {
-    id: '101',
-    categoriaId: '1',
-    nombre: 'Nachos Supremos',
-    descripcion: 'Totopos crujientes con queso fundido, frijoles y guacamole.',
-    precio: 6.50,
-    disponible: true,
-    imagen: 'https://images.unsplash.com/photo-1513456852971-30c0b8199d4d?w=400'
-  },
-  {
-    id: '102',
-    categoriaId: '2',
-    nombre: 'Hamburguesa MenúGo',
-    descripcion: 'Carne 100% de res, queso cheddar, tocino y papas a la francesa.',
-    precio: 8.99,
-    disponible: true,
-    imagen: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400'
-  },
-  {
-    id: '103',
-    categoriaId: '3',
-    nombre: 'Limonada Mineral',
-    descripcion: 'Limonada natural preparada con agua mineral de manantial.',
-    precio: 2.50,
-    disponible: true,
-    imagen: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=400'
+function headersConAuth(extra = {}) {
+  const token = localStorage.getItem('menugo_token')
+  return { ...extra, Authorization: `Bearer ${token}` }
+}
+
+async function manejarRespuesta(res) {
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data.error?.message || 'Ocurrio un error inesperado.')
   }
-]
+  return data
+}
+
+// --- Categorias ---
+
+export async function obtenerCategorias() {
+  const res = await fetch(`${API_URL}/categorias`, { headers: headersConAuth() })
+  return manejarRespuesta(res)
+}
+
+export async function crearCategoria(datos) {
+  const res = await fetch(`${API_URL}/categorias`, {
+    method: 'POST',
+    headers: headersConAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(datos),
+  })
+  return manejarRespuesta(res)
+}
+
+export async function actualizarCategoria(id, datos) {
+  const res = await fetch(`${API_URL}/categorias/${id}`, {
+    method: 'PATCH',
+    headers: headersConAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(datos),
+  })
+  return manejarRespuesta(res)
+}
+
+// --- Platillos ---
+
+export async function obtenerPlatillos() {
+  const res = await fetch(`${API_URL}/platillos`, { headers: headersConAuth() })
+  return manejarRespuesta(res)
+}
+
+export async function crearPlatillo(datos) {
+  const res = await fetch(`${API_URL}/platillos`, {
+    method: 'POST',
+    headers: headersConAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(datos),
+  })
+  return manejarRespuesta(res)
+}
+
+export async function actualizarPlatillo(id, datos) {
+  const res = await fetch(`${API_URL}/platillos/${id}`, {
+    method: 'PATCH',
+    headers: headersConAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(datos),
+  })
+  return manejarRespuesta(res)
+}
+
+export async function actualizarDisponibilidad(id, disponible) {
+  const res = await fetch(`${API_URL}/platillos/${id}/disponibilidad`, {
+    method: 'PATCH',
+    headers: headersConAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ disponible }),
+  })
+  return manejarRespuesta(res)
+}
+
+export async function subirImagenPlatillo(id, archivo) {
+  const formData = new FormData()
+  formData.append('imagen', archivo)
+  const res = await fetch(`${API_URL}/platillos/${id}/imagen`, {
+    method: 'POST',
+    headers: headersConAuth(),
+    body: formData,
+  })
+  return manejarRespuesta(res)
+}
+
+// --- Carta publica (sin autenticacion) ---
+
+export async function obtenerCartaPublica({ categoria, buscar } = {}) {
+  const params = new URLSearchParams()
+  if (categoria) params.set('categoria', categoria)
+  if (buscar) params.set('buscar', buscar)
+  const res = await fetch(`${API_URL}/carta-publica?${params}`)
+  return manejarRespuesta(res)
+}

@@ -8,7 +8,7 @@ import Login from '@/pages/Login'
 import CartaPublica from '@/pages/CartaPublica'
 import SinPermiso from '@/pages/SinPermiso'
 
-// Páginas del Sistema
+// Páginas Operativas y de Administración
 import MenuAdmin from '@/pages/MenuAdmin'
 import MesasAdmin from '@/pages/MesasAdmin'
 import TomaPedidos from '@/pages/TomaPedidos'
@@ -25,39 +25,40 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Vistas sin Menú Lateral */}
+          {/* 1. Rutas Públicas (Sin Sidebar/Layout) */}
           <Route path="/login" element={<Login />} />
           <Route path="/carta-publica" element={<CartaPublica />} />
 
-          {/* Todas las Vistas dentro del Layout, cada una con su rol requerido */}
+          {/* 2. Rutas del Sistema (Con Sidebar/Layout) */}
           <Route element={<Layout />}>
-            <Route path="/" element={<Navigate to="/mapa-salon" replace />} />
             <Route path="/sin-permiso" element={<SinPermiso />} />
+            <Route path="/" element={<Navigate to="/mapa-salon" replace />} />
 
-            {/* Administrador y mesero */}
-            <Route element={<RutaProtegida rolesPermitidos={['administrador', 'mesero']} />}>
-              <Route path="/mapa-salon" element={<MapaSalon />} />
-              <Route path="/pedidos" element={<TomaPedidos />} />
+            {/* Exclusivas de ADMINISTRADOR */}
+            <Route element={<RutaProtegida rolesPermitidos={['ADMINISTRADOR']} />}>
+              <Route path="/menu" element={<MenuAdmin />} />
+              <Route path="/mesas" element={<MesasAdmin />} />
+              <Route path="/categorias" element={<Categorias />} />
+              <Route path="/platillos" element={<Platillos />} />
+              <Route path="/reportes" element={<Reportes />} />
             </Route>
 
-            {/* Administrador y cocinero */}
-            <Route element={<RutaProtegida rolesPermitidos={['administrador', 'cocinero']} />}>
+            {/* ADMINISTRADOR y MESERO */}
+            <Route element={<RutaProtegida rolesPermitidos={['ADMINISTRADOR', 'MESERO']} />}>
+              <Route path="/mapa-salon" element={<MapaSalon />} />
+              <Route path="/pedidos" element={<TomaPedidos />} />
+              <Route path="/toma-pedido" element={<TomaPedidos />} />
+            </Route>
+
+            {/* ADMINISTRADOR y COCINERO */}
+            <Route element={<RutaProtegida rolesPermitidos={['ADMINISTRADOR', 'COCINERO']} />}>
               <Route path="/cocina" element={<Cocina />} />
             </Route>
 
-            {/* Administrador y cajero */}
-            <Route element={<RutaProtegida rolesPermitidos={['administrador', 'cajero']} />}>
+            {/* ADMINISTRADOR y CAJERO */}
+            <Route element={<RutaProtegida rolesPermitidos={['ADMINISTRADOR', 'CAJERO']} />}>
               <Route path="/cobro" element={<Cobro />} />
               <Route path="/corte-caja" element={<CorteCaja />} />
-            </Route>
-
-            {/* Exclusivas de administrador */}
-            <Route element={<RutaProtegida rolesPermitidos={['administrador']} />}>
-              <Route path="/menu" element={<MenuAdmin />} />
-              <Route path="/mesas" element={<MesasAdmin />} />
-              <Route path="/reportes" element={<Reportes />} />
-              <Route path="/categorias" element={<Categorias />} />
-              <Route path="/platillos" element={<Platillos />} />
             </Route>
           </Route>
         </Routes>

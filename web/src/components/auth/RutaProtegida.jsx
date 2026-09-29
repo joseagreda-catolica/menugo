@@ -8,7 +8,8 @@ import { useAuth } from '@/context/AuthContext'
 export default function RutaProtegida({ rolesPermitidos }) {
   const { usuario, token } = useAuth()
 
-  if (!token || !usuario) {
+  // 1. Si no hay usuario o token autenticado, redirige al Login
+  if (!usuario || !token) {
     return <Navigate to="/login" replace />
   }
 

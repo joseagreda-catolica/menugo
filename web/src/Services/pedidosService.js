@@ -1,13 +1,36 @@
-export const MOCK_PEDIDOS_INICIALES = [
-  {
-    id: 'PED-001',
-    mesaId: '2',
-    mesaNumero: 'Mesa 2',
-    estado: 'en_preparacion', // 'pendiente' | 'en_preparacion' | 'servido' | 'pagado'
-    items: [
-      { id: '102', nombre: 'Hamburguesa MenúGo', cantidad: 2, precio: 8.99, nota: 'Sin cebolla' }
-    ],
-    total: 17.98,
-    fecha: new Date().toISOString()
-  }
-]
+const API_URL = 'http://localhost:3000/api'
+
+function headersConAuth(extra = {}) {
+  const token = localStorage.getItem('menugo_token')
+  return { ...extra, Authorization: `Bearer ${token}` }
+}
+
+async function manejarRespuesta(res) {
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error?.message || data.error || 'Ocurrio un error inesperado.')
+  return data
+}
+
+export async function obtenerPedidos() {
+  const res = await fetch(`${API_URL}/pedidos`, { headers: headersConAuth() })
+  return manejarRespuesta(res)
+}
+
+export async function crearPedido(mesaId, lineas) {
+  // lineas: [{ platilloId, cantidad, notaPreparacion }] -- SIN precio, el servidor lo resuelve solo
+  const res = await fetch(`${API_URL}/pedidos`, {
+    method: 'POST',
+    headers: headersConAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ mesaId, lineas }),
+  })
+  return manejarRespuesta(res)
+}
+
+export async function actualizarEstadoLinea(lineaId, estado) {
+  const res = await fetch(`${API_URL}/pedidos/lineas/${lineaId}/estado`, {
+    method: 'PATCH',
+    headers: headersConAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ estado }),
+  })
+  return manejarRespuesta(res)
+}
