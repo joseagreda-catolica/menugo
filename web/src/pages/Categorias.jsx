@@ -112,19 +112,28 @@ export function Categorias() {
     }
   };
 
-  const mover = (index, direccion) => {
-    const nuevas = [...categorias];
+  const mover = async (index, direccion) => {
+    const ordenadas = ordenarCategorias(categorias);
     const targetIndex = index + direccion;
 
-    if (targetIndex < 0 || targetIndex >= nuevas.length) {
+    if (targetIndex < 0 || targetIndex >= ordenadas.length) {
       return;
     }
 
-    const temp = nuevas[index];
-    nuevas[index] = nuevas[targetIndex];
-    nuevas[targetIndex] = temp;
+    // RF-05: el orden se persiste en el servidor, no solo en la pantalla --
+    // se intercambia el campo 'orden' de las dos categorias afectadas.
+    const actual = ordenadas[index];
+    const vecina = ordenadas[targetIndex];
 
-    setCategorias(nuevas);
+    try {
+      await Promise.all([
+        actualizarCategoria(actual.id, { orden: vecina.orden }),
+        actualizarCategoria(vecina.id, { orden: actual.orden }),
+      ]);
+      await recargarCategorias();
+    } catch (error) {
+      console.error("Error al reordenar categorias:", error);
+    }
   };
 
   const categoriasActivas = categorias.filter(
