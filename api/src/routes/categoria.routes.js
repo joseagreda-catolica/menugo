@@ -21,10 +21,29 @@ const actualizarSchema = z.object({
   activa: z.boolean().optional(),
 });
 
-router.use(requireAuth, requireRole('administrador'));
+// Todas las rutas exigen autenticación
+router.use(requireAuth);
 
-router.get('/', categoriaController.listar);
-router.post('/', validate(crearSchema), categoriaController.crear);
-router.patch('/:id', validate(actualizarSchema), categoriaController.actualizar);
+// GET: Lectura permitida para administrador, mesero, cocinero y cajero
+router.get(
+  '/',
+  requireRole('administrador', 'mesero', 'cocinero', 'cajero'),
+  categoriaController.listar
+);
+
+// POST y PATCH: Exclusivos para administrador
+router.post(
+  '/',
+  requireRole('administrador'),
+  validate(crearSchema),
+  categoriaController.crear
+);
+
+router.patch(
+  '/:id',
+  requireRole('administrador'),
+  validate(actualizarSchema),
+  categoriaController.actualizar
+);
 
 module.exports = router;
