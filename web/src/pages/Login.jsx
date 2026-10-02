@@ -1,14 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext"; // Asegúrate de que la ruta sea correcta
-
-// Primera pantalla de cada rol: la que su rol realmente puede abrir.
-const RUTA_INICIAL_POR_ROL = {
-  administrador: "/mapa-salon",
-  mesero: "/mapa-salon",
-  cocinero: "/cocina",
-  cajero: "/cobro",
-};
+import { rutaInicialPorRol } from "../components/auth/rutaInicialPorRol";
 
 function Login() {
   const [correo, setCorreo] = useState("");
@@ -68,7 +61,8 @@ function Login() {
         await login(usuario, token);
       }
 
-      navigate(RUTA_INICIAL_POR_ROL[usuario?.rol?.toLowerCase()] || "/mapa-salon");
+      // replace: el login no queda en el historial, así "atrás" no vuelve a él.
+      navigate(rutaInicialPorRol(usuario?.rol), { replace: true });
     } catch (err) {
       setError(err.message || "Error al conectar con el servidor");
     } finally {

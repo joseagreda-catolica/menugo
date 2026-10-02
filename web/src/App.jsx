@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from '@/context/AuthContext'
 import Layout from '@/components/Layout/Layout'
 import RutaProtegida from '@/components/auth/RutaProtegida'
+import RutaSoloInvitados from '@/components/auth/RutaSoloInvitados'
 
 // Páginas Públicas y de Control
 import Login from '@/pages/Login'
@@ -26,7 +27,9 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           {/* 1. Rutas Públicas (Sin Sidebar/Layout) */}
-          <Route path="/login" element={<Login />} />
+          <Route element={<RutaSoloInvitados />}>
+            <Route path="/login" element={<Login />} />
+          </Route>
           <Route path="/carta-publica" element={<CartaPublica />} />
 
           {/* 2. Rutas del Sistema (Con Sidebar/Layout) */}
