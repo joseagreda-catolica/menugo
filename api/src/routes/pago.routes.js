@@ -2,6 +2,7 @@ const { Router } = require('express');
 const prisma = require('../lib/prisma');
 const requireAuth = require('../middlewares/auth.middleware');
 const requireRole = require('../middlewares/role.middleware');
+const AppError = require('../lib/AppError');
 
 const router = Router();
 
@@ -20,13 +21,20 @@ const procesarCobroDirecto = async (req, res) => {
     }
 
     const resultado = await prisma.$transaction(async (tx) => {
+      // Bloquea la cuenta para que dos cobros simultaneos no la paguen dos veces.
+      await tx.$queryRaw`SELECT id FROM cuenta WHERE id = ${idCuenta} FOR UPDATE`;
+
       // 1. Verificar cuenta
       const cuenta = await tx.cuenta.findUnique({
         where: { id: idCuenta },
       });
 
       if (!cuenta) {
-        throw new Error('La cuenta a cobrar no existe.');
+        throw new AppError(404, 'CUENTA_NO_ENCONTRADA', 'La cuenta a cobrar no existe.');
+      }
+
+      if (cuenta.cerradaEn) {
+        throw new AppError(409, 'CUENTA_YA_COBRADA', 'La cuenta ya fue cobrada.');
       }
 
       const montoCobrar = !isNaN(montoFinal) && montoFinal > 0 ? montoFinal : Number(cuenta.total);
@@ -68,6 +76,9 @@ const procesarCobroDirecto = async (req, res) => {
 
     res.json({ ok: true, pago: resultado });
   } catch (error) {
+    if (error instanceof AppError) {
+      return res.status(error.status).json({ error: { code: error.code, message: error.message } });
+    }
     console.error('=== ERROR AL PROCESAR PAGO ===', error);
     res.status(500).json({
       error: 'Error al procesar el pago.',

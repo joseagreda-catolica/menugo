@@ -55,7 +55,7 @@ router.get('/', async (req, res) => {
 // ============================================================================
 router.post('/', async (req, res) => {
   try {
-    const { mesaId, meseroId, lineas, items, platillos, productos, detalles, notas } = req.body;
+    const { mesaId, lineas, items, platillos, productos, detalles, notas } = req.body;
     const idMesa = Number(mesaId);
 
     // Detección flexible de la lista de platillos del carrito
@@ -76,12 +76,9 @@ router.post('/', async (req, res) => {
       // entonces ve la sesion recien creada en vez de crear una duplicada).
       await tx.$queryRaw`SELECT id FROM mesa WHERE id = ${idMesa} FOR UPDATE`;
 
-      // 1. Obtener un mesero válido (meseroId es campo obligatorio en Pedido y SesionMesa)
-      let idMeseroFinal = Number(meseroId);
-      if (isNaN(idMeseroFinal)) {
-        const usuarioExistente = await tx.usuario.findFirst({ where: { activo: true } });
-        idMeseroFinal = usuarioExistente ? usuarioExistente.id : 1;
-      }
+      // 1. El mesero del pedido es quien tiene la sesión iniciada, no un valor
+      //    que mande el cliente (meseroId es obligatorio en Pedido y SesionMesa).
+      const idMeseroFinal = req.usuario.id;
 
       // 2. Buscar o crear la SesionMesa activa
       let sesionActiva = await tx.sesionMesa.findFirst({
