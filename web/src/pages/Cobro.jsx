@@ -146,7 +146,7 @@ export default function Cobro() {
 
                       <div className="text-xs text-gray-500 space-y-0.5">
                         <p>Mesero: {c.sesionMesa?.mesero?.nombreCompleto || 'Sin asignar'}</p>
-                        <p>Comensales: {c.sesionMesa?.numComensales || 1}</p>
+                        {c.sesionMesa?.numComensales ? <p>Comensales: {c.sesionMesa.numComensales}</p> : null}
                       </div>
                     </div>
                   )

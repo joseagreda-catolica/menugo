@@ -11,9 +11,9 @@ export default function Layout() {
 
   // Normalizamos el rol a mayúsculas para que coincida con las llaves de menuPorRol
   const rolActual = (
-    usuarioActivo?.rol || 
-    usuarioActivo?.role || 
-    'ADMINISTRADOR'
+    usuarioActivo?.rol ||
+    usuarioActivo?.role ||
+    ''
   ).toUpperCase()
 
   const handleLogout = () => {
