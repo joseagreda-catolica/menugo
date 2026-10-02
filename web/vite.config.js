@@ -12,5 +12,12 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
+  },
+  server: {
+    // Las fotos subidas sin Cloudinary se guardan como /uploads/... en la API;
+    // sin este proxy el navegador las pediria al servidor de Vite y no cargan.
+    proxy: {
+      '/uploads': 'http://localhost:3000'
+    }
   }
 })

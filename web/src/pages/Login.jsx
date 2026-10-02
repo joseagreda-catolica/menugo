@@ -2,6 +2,14 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext"; // Asegúrate de que la ruta sea correcta
 
+// Primera pantalla de cada rol: la que su rol realmente puede abrir.
+const RUTA_INICIAL_POR_ROL = {
+  administrador: "/mapa-salon",
+  mesero: "/mapa-salon",
+  cocinero: "/cocina",
+  cajero: "/cobro",
+};
+
 function Login() {
   const [correo, setCorreo] = useState("");
   const [contrasena, setContrasena] = useState("");
@@ -36,6 +44,8 @@ function Login() {
             ? data.mensaje
             : typeof data.error === "string"
             ? data.error
+            : typeof data.error?.message === "string"
+            ? data.error.message
             : typeof data.message === "string"
             ? data.message
             : "Error en el servidor al autenticar";
@@ -58,8 +68,7 @@ function Login() {
         await login(usuario, token);
       }
 
-      // Redirigir a la vista de mapa-salon
-      navigate("/mapa-salon");
+      navigate(RUTA_INICIAL_POR_ROL[usuario?.rol?.toLowerCase()] || "/mapa-salon");
     } catch (err) {
       setError(err.message || "Error al conectar con el servidor");
     } finally {
