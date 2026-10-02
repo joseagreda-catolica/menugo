@@ -20,10 +20,9 @@ const obtenerCorteActual = async (req, res) => {
 
     // 2. Si no hay turno abierto, lo crea automáticamente para no perder cobros
     if (!corteActivo) {
-      const usuario = await prisma.usuario.findFirst({ where: { activo: true } });
       corteActivo = await prisma.corteCaja.create({
         data: {
-          cajeroId: usuario ? usuario.id : 1,
+          cajeroId: req.usuario.id,
           turnoFecha: new Date(),
           abiertoEn: new Date(),
         },
@@ -121,8 +120,6 @@ router.get('/', obtenerCorteActual);
 // POST /api/corte-caja/abrir
 router.post('/abrir', async (req, res) => {
   try {
-    const { cajeroId } = req.body;
-
     const corteExistente = await prisma.corteCaja.findFirst({
       where: { cerradoEn: null },
       orderBy: { id: 'desc' },
@@ -132,15 +129,9 @@ router.post('/abrir', async (req, res) => {
       return res.status(400).json({ error: 'Ya existe un turno de caja abierto.' });
     }
 
-    let idCajeroFinal = Number(cajeroId);
-    if (isNaN(idCajeroFinal)) {
-      const usuarioExistente = await prisma.usuario.findFirst({ where: { activo: true } });
-      idCajeroFinal = usuarioExistente ? usuarioExistente.id : 1;
-    }
-
     const nuevoCorte = await prisma.corteCaja.create({
       data: {
-        cajeroId: idCajeroFinal,
+        cajeroId: req.usuario.id,
         turnoFecha: new Date(),
         abiertoEn: new Date(),
       },
