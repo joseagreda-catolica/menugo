@@ -44,7 +44,7 @@ stateDiagram-v2
 | — → pendiente | Mesero | Ninguna | Estado inicial al agregar la línea |
 | pendiente → en_preparacion | Cocinero | La línea aparece en la pantalla de cocina | |
 | en_preparacion → listo | Cocinero | — | Dispara el aviso al mesero mencionado en la propuesta (sección 4.1) |
-| listo → entregado | Mesero | El platillo ya está físicamente en la mesa | Cierra el ciclo de esa línea |
+| listo → entregado | Mesero (o cocinero, desde la pantalla de cocina) | El platillo ya está físicamente en la mesa | Cierra el ciclo de esa línea. La API lo permite a ambos roles porque el único botón que lo ejecuta hoy está en la pantalla de cocina |
 | pendiente → anulada | Mesero o administrador | La línea sigue en `pendiente` (RF-15: "mientras el platillo no haya iniciado su preparación") | Baja lógica, nunca `DELETE` (RNF-10) |
 
 **No existe transición de `en_preparacion` o `listo` hacia `anulada`.** RF-15 limita la eliminación de líneas al estado `pendiente` explícitamente; una vez que la cocina empezó a prepararla, el insumo ya se comprometió. La única forma de retirarla después de ese punto es anular el `pedido` completo (RF-16), que es una decisión distinta —con motivo y responsable registrados— y no un cambio de estado de la línea individual.
