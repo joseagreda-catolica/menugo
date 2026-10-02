@@ -3,6 +3,7 @@ const prisma = require('../lib/prisma');
 const requireAuth = require('../middlewares/auth.middleware');
 const requireRole = require('../middlewares/role.middleware');
 const AppError = require('../lib/AppError');
+const cobroService = require('../services/cobro.service');
 
 const router = Router();
 
@@ -54,78 +55,22 @@ router.get('/pendientes', async (req, res) => {
   }
 });
 
-// Lógica para procesar el pago de la cuenta
+// Procesar el pago de la cuenta (la logica vive en cobro.service.js)
 const procesarPago = async (req, res) => {
   try {
     const idCuenta = Number(req.params.id || req.body.cuentaId || req.body.id);
-    const { formaPago, monto } = req.body;
-    const montoFinal = Number(monto);
 
     if (isNaN(idCuenta)) {
       return res.status(400).json({ error: 'El ID de la cuenta no es válido.' });
     }
 
-    const resultado = await prisma.$transaction(async (tx) => {
-      // Bloquea la cuenta: si dos cobros llegan a la vez, el segundo espera y
-      // luego ve la cuenta ya cerrada en vez de registrar un pago duplicado.
-      await tx.$queryRaw`SELECT id FROM cuenta WHERE id = ${idCuenta} FOR UPDATE`;
-
-      // 1. Verificar si hay un turno de caja abierto
-      const corteActivo = await tx.corteCaja.findFirst({
-        where: { cerradoEn: null },
-      });
-
-      const cuenta = await tx.cuenta.findUnique({
-        where: { id: idCuenta },
-      });
-
-      if (!cuenta) {
-        throw new AppError(404, 'CUENTA_NO_ENCONTRADA', 'La cuenta no existe.');
-      }
-
-      if (cuenta.cerradaEn) {
-        throw new AppError(409, 'CUENTA_YA_COBRADA', 'La cuenta ya fue cobrada.');
-      }
-
-      const montoCobrar = !isNaN(montoFinal) && montoFinal > 0 ? montoFinal : Number(cuenta.total);
-
-      // 2. Crear división del pago
-      const division = await tx.cuentaDivision.create({
-        data: {
-          cuentaId: idCuenta,
-          etiqueta: 'Pago Total',
-          monto: montoCobrar,
-        },
-      });
-
-      // 3. Crear pago asociando el corte de caja si existe
-      const pago = await tx.pago.create({
-        data: {
-          cuentaDivisionId: division.id,
-          formaPago: formaPago || 'efectivo',
-          monto: montoCobrar,
-          corteCajaId: corteActivo ? corteActivo.id : null, // 👈 Se vincula a la caja
-        },
-      });
-
-      // 4. Cerrar la cuenta
-      await tx.cuenta.update({
-        where: { id: idCuenta },
-        data: { cerradaEn: new Date() },
-      });
-
-      // 5. Liberar la mesa
-      if (cuenta.sesionMesaId) {
-        await tx.sesionMesa.update({
-          where: { id: cuenta.sesionMesaId },
-          data: { estado: 'cerrada', cerradaEn: new Date() },
-        });
-      }
-
-      return pago;
+    const pago = await cobroService.cobrarCuenta({
+      idCuenta,
+      formaPago: req.body.formaPago,
+      usuarioId: req.usuario.id,
     });
 
-    res.json({ ok: true, pago: resultado });
+    res.json({ ok: true, pago });
   } catch (error) {
     if (error instanceof AppError) {
       return res.status(error.status).json({ error: { code: error.code, message: error.message } });
