@@ -60,7 +60,7 @@ export default function MapaSalon() {
 
     try {
       setGuardandoEstado(true)
-      await fetch(`${API_URL}/mesas/${mesaId}`, {
+      const respuesta = await fetch(`${API_URL}/mesas/${mesaId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -70,10 +70,15 @@ export default function MapaSalon() {
           estado: nuevoEstado,
         }),
       })
+      if (!respuesta.ok) {
+        const datos = await respuesta.json().catch(() => ({}))
+        throw new Error(datos.error?.message || datos.error || 'No se pudo actualizar el estado en el servidor.')
+      }
       await cargarMesasBD()
     } catch (error) {
       console.error('Error al actualizar el estado de la mesa:', error)
-      alert('No se pudo actualizar el estado en el servidor.')
+      alert(error.message || 'No se pudo actualizar el estado en el servidor.')
+      await cargarMesasBD()
     } finally {
       setGuardandoEstado(false)
     }

@@ -2,6 +2,7 @@ const { Router } = require('express');
 const prisma = require('../lib/prisma');
 const requireAuth = require('../middlewares/auth.middleware');
 const requireRole = require('../middlewares/role.middleware');
+const AppError = require('../lib/AppError');
 
 const router = Router();
 
@@ -118,7 +119,7 @@ router.post('/mesas', async (req, res) => {
 router.put('/mesas/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { numero, capacidad, ubicacion, seccion, activa, estado, meseroId, numComensales } = req.body;
+    const { numero, capacidad, ubicacion, seccion, activa, estado, numComensales } = req.body;
 
     const idMesa = Number(id);
     if (isNaN(idMesa)) {
@@ -150,54 +151,68 @@ router.put('/mesas/:id', async (req, res) => {
       });
     }
 
-    // Lógica para gestionar la SesionMesa de forma segura
+    // Lógica para gestionar la SesionMesa de forma segura (RNF-07): todo bajo
+    // SELECT ... FOR UPDATE sobre la mesa, igual que al tomar un pedido, para que
+    // dos acciones simultáneas no abran dos sesiones para la misma mesa.
     if (estado !== undefined) {
-      const sesionActiva = await prisma.sesionMesa.findFirst({
-        where: { mesaId: idMesa, cerradaEn: null },
-      });
+      await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM mesa WHERE id = ${idMesa} FOR UPDATE`;
 
-      if (estado === 'libre') {
-        // Al liberar la mesa, se cierra la sesión marcando cerradaEn y el enum 'cerrada'
-        if (sesionActiva) {
-          await prisma.sesionMesa.update({
-            where: { id: sesionActiva.id },
-            data: { 
-              cerradaEn: new Date(),
-              estado: 'cerrada',
-            },
-          });
-        }
-      } else {
-        const estadoEnum = mapearEstadoSesion(estado);
+        const sesionActiva = await tx.sesionMesa.findFirst({
+          where: { mesaId: idMesa, cerradaEn: null },
+        });
 
-        if (sesionActiva) {
-          // Si existe sesión abierta, se actualiza al enum correspondiente
-          await prisma.sesionMesa.update({
-            where: { id: sesionActiva.id },
-            data: { estado: estadoEnum },
-          });
-        } else {
-          // Si no existe, buscamos un mesero válido existente si el enviado no es válido
-          let idMeseroFinal = Number(meseroId);
-          if (isNaN(idMeseroFinal)) {
-            const usuarioExistente = await prisma.usuario.findFirst({ where: { activo: true } });
-            if (!usuarioExistente) {
-              return res.status(400).json({ error: 'No existen usuarios en la base de datos para asignar la sesión.' });
+        if (estado === 'libre') {
+          // Al liberar la mesa, se cierra la sesión marcando cerradaEn y el enum 'cerrada'
+          if (sesionActiva) {
+            // docs/maquinas-estado.md: una mesa solo se libera sin cobrar si no tiene
+            // pedidos abiertos ni cuenta con saldo; si no, la cuenta quedaria huerfana.
+            const pedidosAbiertos = await tx.pedido.count({
+              where: { sesionMesaId: sesionActiva.id, estado: 'abierto' },
+            });
+            const cuentaAbierta = await tx.cuenta.findFirst({
+              where: { sesionMesaId: sesionActiva.id, cerradaEn: null },
+            });
+            if (pedidosAbiertos > 0 || (cuentaAbierta && Number(cuentaAbierta.total) > 0)) {
+              throw new AppError(
+                409,
+                'MESA_CON_CUENTA_PENDIENTE',
+                'La mesa tiene pedidos o una cuenta pendiente: cóbrala o anula el pedido antes de liberarla.'
+              );
             }
-            idMeseroFinal = usuarioExistente.id;
-          }
 
-          await prisma.sesionMesa.create({
-            data: {
-              mesaId: idMesa,
-              meseroId: idMeseroFinal,
-              estado: estadoEnum,
-              abiertaEn: new Date(),
-              numComensales: numComensales ? Number(numComensales) : null,
-            },
-          });
+            const ahora = new Date();
+            if (cuentaAbierta) {
+              await tx.cuenta.update({ where: { id: cuentaAbierta.id }, data: { cerradaEn: ahora } });
+            }
+            await tx.sesionMesa.update({
+              where: { id: sesionActiva.id },
+              data: { cerradaEn: ahora, estado: 'cerrada' },
+            });
+          }
+        } else {
+          const estadoEnum = mapearEstadoSesion(estado);
+
+          if (sesionActiva) {
+            // Si existe sesión abierta, se actualiza al enum correspondiente
+            await tx.sesionMesa.update({
+              where: { id: sesionActiva.id },
+              data: { estado: estadoEnum },
+            });
+          } else {
+            // El mesero de la sesión es quien la abre, no un valor que mande el cliente.
+            await tx.sesionMesa.create({
+              data: {
+                mesaId: idMesa,
+                meseroId: req.usuario.id,
+                estado: estadoEnum,
+                abiertaEn: new Date(),
+                numComensales: numComensales ? Number(numComensales) : null,
+              },
+            });
+          }
         }
-      }
+      });
     }
 
     // Consulta el estado final para sincronizar con la interfaz
@@ -212,6 +227,9 @@ router.put('/mesas/:id', async (req, res) => {
       sesionId: sesionFinal ? sesionFinal.id : null,
     });
   } catch (error) {
+    if (error instanceof AppError) {
+      return res.status(error.status).json({ error: { code: error.code, message: error.message } });
+    }
     console.error('Error al actualizar mesa/sesión:', error);
     res.status(500).json({
       error: 'Error interno al actualizar la mesa o su sesión.',
