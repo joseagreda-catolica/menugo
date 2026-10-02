@@ -4,9 +4,20 @@ const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viern
 
 // Rango por defecto amplio (ultimo año) para que el reporte no salga vacio
 // si no se especifican fechas -- util para la demostracion.
+// Una fecha "AAAA-MM-DD" es un dia completo en hora local del servidor: "desde"
+// empieza a las 00:00 y "hasta" termina a las 23:59:59, para que elegir el mismo
+// dia en ambos campos devuelva las ventas de ese dia (y no las de medianoche UTC).
+const SOLO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
+
+function interpretarFecha(texto, finDelDia) {
+  if (!SOLO_FECHA.test(texto)) return new Date(texto);
+  const [anio, mes, dia] = texto.split('-').map(Number);
+  return finDelDia ? new Date(anio, mes - 1, dia, 23, 59, 59, 999) : new Date(anio, mes - 1, dia);
+}
+
 function resolverRango(desde, hasta) {
-  const fin = hasta ? new Date(hasta) : new Date();
-  const inicio = desde ? new Date(desde) : new Date(fin.getFullYear() - 1, fin.getMonth(), fin.getDate());
+  const fin = hasta ? interpretarFecha(hasta, true) : new Date();
+  const inicio = desde ? interpretarFecha(desde, false) : new Date(fin.getFullYear() - 1, fin.getMonth(), fin.getDate());
   return { desde: inicio, hasta: fin };
 }
 
