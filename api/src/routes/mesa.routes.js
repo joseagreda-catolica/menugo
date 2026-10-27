@@ -81,7 +81,7 @@ router.get('/secciones', async (req, res) => {
 });
 
 // 3. POST /api/mesas - Crear nueva Mesa
-router.post('/mesas', async (req, res) => {
+router.post('/mesas', requireRole('administrador'), async (req, res) => {
   try {
     const { numero, capacidad, ubicacion, seccion, activa } = req.body;
 
@@ -122,6 +122,15 @@ router.put('/mesas/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { numero, capacidad, ubicacion, seccion, activa, estado, numComensales } = req.body;
+
+    // El mesero opera el salon (cambia el estado de la mesa); solo el administrador
+    // modifica los datos de la mesa.
+    const cambiaDatosDeLaMesa = [numero, capacidad, ubicacion, seccion, activa].some((v) => v !== undefined);
+    if (cambiaDatosDeLaMesa && req.usuario.rol !== 'administrador') {
+      return res.status(403).json({
+        error: { code: 'SIN_PERMISO', message: 'Solo el administrador puede modificar los datos de una mesa.' },
+      });
+    }
 
     const idMesa = Number(id);
     if (isNaN(idMesa)) {
@@ -241,9 +250,37 @@ router.put('/mesas/:id', async (req, res) => {
 });
 
 // 5. DELETE /api/mesas/:id
-router.delete('/mesas/:id', async (req, res) => {
+// RNF-10: una mesa con historial de pedidos no se borra, se desactiva; una con la sesion
+// abierta no se puede dar de baja hasta cobrarla o liberarla.
+router.delete('/mesas/:id', requireRole('administrador'), async (req, res) => {
   try {
     const idMesa = Number(req.params.id);
+    if (isNaN(idMesa)) {
+      return res.status(400).json({ error: 'ID de mesa no válido.' });
+    }
+
+    const mesa = await prisma.mesa.findUnique({ where: { id: idMesa } });
+    if (!mesa) {
+      return res.status(404).json({ error: 'La mesa solicitada no existe.' });
+    }
+
+    const sesionAbierta = await prisma.sesionMesa.count({ where: { mesaId: idMesa, cerradaEn: null } });
+    if (sesionAbierta > 0) {
+      return res.status(409).json({
+        error: 'La mesa tiene una sesión abierta: cóbrala o libérala antes de darla de baja.',
+      });
+    }
+
+    const conHistorial = await prisma.sesionMesa.count({ where: { mesaId: idMesa } });
+    if (conHistorial > 0) {
+      await prisma.mesa.update({ where: { id: idMesa }, data: { activa: false } });
+      return res.json({
+        ok: true,
+        desactivada: true,
+        mensaje: 'La mesa tiene historial de pedidos, por eso se desactivó en lugar de borrarse.',
+      });
+    }
+
     await prisma.mesa.delete({ where: { id: idMesa } });
     res.json({ ok: true, mensaje: 'Mesa eliminada.' });
   } catch (error) {

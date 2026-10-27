@@ -159,11 +159,13 @@ export default function MesasAdmin() {
         headers: getAuthHeaders(),
       });
 
+      const datos = await res.json().catch(() => ({}));
       if (res.ok) {
+        // Una mesa con historial se desactiva en lugar de borrarse: se avisa para que no sorprenda.
+        if (datos.desactivada && datos.mensaje) alert(datos.mensaje);
         setRecargar((prev) => prev + 1);
       } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(`No se pudo eliminar: ${errData.error || 'Error en el servidor'}`);
+        alert(`No se pudo eliminar: ${datos.error?.message || datos.error || 'Error en el servidor'}`);
       }
     } catch (error) {
       console.error('Error al eliminar:', error);
