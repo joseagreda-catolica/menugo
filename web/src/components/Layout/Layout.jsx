@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 
 export default function Layout() {
   const location = useLocation()
   const navigate = useNavigate()
+  // En pantallas chicas el menu lateral se oculta y se abre con el boton de hamburguesa.
+  const [menuAbierto, setMenuAbierto] = useState(false)
   
   // Obtenemos los datos de sesión reales del AuthContext
   const { user, usuario, logout } = useAuth()
@@ -59,7 +62,20 @@ export default function Layout() {
     <div className="flex min-h-screen bg-slate-50">
 
       {/* ================= SIDEBAR ================= */}
-      <aside className="fixed left-0 top-0 z-40 flex h-screen w-72 flex-col bg-slate-950 text-white shadow-2xl">
+      {/* Fondo oscuro detras del menu en pantallas chicas */}
+      {menuAbierto && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setMenuAbierto(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        className={`fixed left-0 top-0 z-50 flex h-screen w-72 max-w-[85vw] flex-col bg-slate-950 text-white shadow-2xl transition-transform duration-200 lg:translate-x-0 ${
+          menuAbierto ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
 
         {/* Logo */}
         <div className="border-b border-white/10 px-6 py-6">
@@ -115,6 +131,7 @@ export default function Layout() {
                 <Link
                   key={item.path}
                   to={item.path}
+                  onClick={() => setMenuAbierto(false)}
                   className={`group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-all duration-200 ${
                     isActive
                       ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
@@ -150,6 +167,7 @@ export default function Layout() {
         <div className="border-t border-white/10 p-4">
           <Link
             to="/carta-publica"
+            onClick={() => setMenuAbierto(false)}
             className="mb-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5">
@@ -184,11 +202,21 @@ export default function Layout() {
       </aside>
 
       {/* ================= CONTENIDO ================= */}
-      <main className="ml-72 min-h-screen flex-1">
+      <main className="min-h-screen min-w-0 flex-1 lg:ml-72">
 
         {/* Barra superior */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/90 px-8 backdrop-blur">
-          <div>
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-8">
+          <button
+            type="button"
+            onClick={() => setMenuAbierto(true)}
+            aria-label="Abrir menú"
+            aria-expanded={menuAbierto}
+            className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-lg text-slate-700 transition hover:bg-slate-100 lg:hidden"
+          >
+            ☰
+          </button>
+
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-medium text-slate-400">
               SISTEMA DE RESTAURANTE
             </p>
@@ -216,7 +244,7 @@ export default function Layout() {
         </header>
 
         {/* Página */}
-        <div className="p-6 md:p-8">
+        <div className="p-4 sm:p-6 md:p-8">
           <Outlet />
         </div>
 
