@@ -36,6 +36,7 @@ const INCLUDE_CUENTA = {
     },
   },
   divisiones: { orderBy: { id: 'asc' }, include: { pagos: true } },
+  cajero: { select: { id: true, nombreCompleto: true } },
 };
 
 const dividirSchema = z.discriminatedUnion('modo', [
