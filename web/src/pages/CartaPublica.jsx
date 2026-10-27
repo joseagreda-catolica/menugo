@@ -1,10 +1,15 @@
 import { resolverFoto } from '@/config'
 import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
+import { useAuth } from "@/context/AuthContext"
 import { obtenerCartaPublica } from "../Services/MenuService"
 
 export function CartaPublica() {
   const navigate = useNavigate()
+  const { usuario } = useAuth()
+  // El QR de cada mesa abre la carta con ?mesa=N (RF-10).
+  const [searchParams] = useSearchParams()
+  const mesaQR = /^\d{1,3}$/.test(searchParams.get("mesa") || "") ? searchParams.get("mesa") : null
 
   const [menuAgrupado, setMenuAgrupado] = useState([])
   const [busqueda, setBusqueda] = useState("")
@@ -48,7 +53,8 @@ export function CartaPublica() {
 
           <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
-              {/* Botón de regreso a MapaSalón */}
+              {/* Botón de regreso a MapaSalón: solo para el personal con sesión */}
+              {usuario && (
               <button
                 onClick={() => navigate("/mapa-salon")}
                 className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white backdrop-blur transition hover:bg-white/20 active:scale-95"
@@ -68,6 +74,7 @@ export function CartaPublica() {
                   />
                 </svg>
               </button>
+              )}
 
               <div>
                 <h1 className="text-2xl font-black tracking-tight md:text-3xl">
@@ -81,7 +88,7 @@ export function CartaPublica() {
 
             <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-center backdrop-blur self-start sm:self-auto">
               <span className="text-xs font-bold text-slate-300">
-                Carta Pública
+                {mesaQR ? `Mesa ${mesaQR}` : "Carta Pública"}
               </span>
             </div>
           </div>

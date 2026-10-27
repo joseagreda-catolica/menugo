@@ -30,6 +30,7 @@ export default function Layout() {
       { path: '/categorias', label: 'Categorías', icon: '🏷️' },
       { path: '/platillos', label: 'Platillos', icon: '🍽️' },
       { path: '/mesas', label: 'Mesas', icon: '🪑' },
+      { path: '/mesas/qr', label: 'Códigos QR', icon: '🔳' },
       { path: '/mapa-salon', label: 'Mapa de Salón', icon: '🗺️️' },
       { path: '/toma-pedido', label: 'Toma de Pedido', icon: '📝' },
       { path: '/cocina', label: 'Cocina', icon: '👨‍🍳' },
@@ -73,7 +74,7 @@ export default function Layout() {
       )}
 
       <aside
-        className={`fixed left-0 top-0 z-50 flex h-screen w-72 max-w-[85vw] flex-col bg-slate-950 text-white shadow-2xl transition-transform duration-200 lg:translate-x-0 ${
+        className={`fixed left-0 top-0 z-50 flex h-screen w-72 max-w-[85vw] flex-col bg-slate-950 text-white shadow-2xl transition-transform duration-200 lg:translate-x-0 print:hidden ${
           menuAbierto ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -206,10 +207,10 @@ export default function Layout() {
       {rolActual === "MESERO" && <AvisosCocina />}
 
       {/* ================= CONTENIDO ================= */}
-      <main className="min-h-screen min-w-0 flex-1 lg:ml-72">
+      <main className="min-h-screen min-w-0 flex-1 lg:ml-72 print:ml-0">
 
         {/* Barra superior */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-8">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-8 print:hidden">
           <button
             type="button"
             onClick={() => setMenuAbierto(true)}
@@ -248,7 +249,7 @@ export default function Layout() {
         </header>
 
         {/* Página */}
-        <div className="p-4 sm:p-6 md:p-8">
+        <div className="p-4 sm:p-6 md:p-8 print:p-0">
           <Outlet />
         </div>
 

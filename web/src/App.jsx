@@ -12,6 +12,7 @@ import SinPermiso from '@/pages/SinPermiso'
 // Páginas Operativas y de Administración
 import MenuAdmin from '@/pages/MenuAdmin'
 import MesasAdmin from '@/pages/MesasAdmin'
+import CodigosQR from '@/pages/CodigosQR'
 import TomaPedidos from '@/pages/TomaPedidos'
 import Cocina from '@/pages/Cocina'
 import Cobro from '@/pages/Cobro'
@@ -41,6 +42,7 @@ export default function App() {
             <Route element={<RutaProtegida rolesPermitidos={['ADMINISTRADOR']} />}>
               <Route path="/menu" element={<MenuAdmin />} />
               <Route path="/mesas" element={<MesasAdmin />} />
+              <Route path="/mesas/qr" element={<CodigosQR />} />
               <Route path="/categorias" element={<Categorias />} />
               <Route path="/platillos" element={<Platillos />} />
               <Route path="/reportes" element={<Reportes />} />
