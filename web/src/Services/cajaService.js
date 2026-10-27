@@ -16,11 +16,39 @@ export async function obtenerCuentasPendientes() {
   return manejarRespuesta(res)
 }
 
-export async function registrarPago(cuentaId, formaPago, monto) {
+// El monto lo calcula el servidor a partir de la cuenta; aqui solo se elige la forma de pago.
+export async function registrarPago(cuentaId, formaPago) {
   const res = await fetch(`${API_URL}/cuentas/${cuentaId}/pagos`, {
     method: 'POST',
     headers: headersConAuth({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ formaPago, monto }),
+    body: JSON.stringify({ formaPago }),
+  })
+  return manejarRespuesta(res)
+}
+
+// RF-22: datos = { modo: 'partes_iguales', partes } o { modo: 'por_lineas', grupos: [{ lineaIds }] }
+export async function dividirCuenta(cuentaId, datos) {
+  const res = await fetch(`${API_URL}/cuentas/${cuentaId}/dividir`, {
+    method: 'POST',
+    headers: headersConAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(datos),
+  })
+  return manejarRespuesta(res)
+}
+
+export async function cancelarDivisionCuenta(cuentaId) {
+  const res = await fetch(`${API_URL}/cuentas/${cuentaId}/division`, {
+    method: 'DELETE',
+    headers: headersConAuth(),
+  })
+  return manejarRespuesta(res)
+}
+
+export async function registrarPagoParte(cuentaId, divisionId, formaPago) {
+  const res = await fetch(`${API_URL}/cuentas/${cuentaId}/divisiones/${divisionId}/pagos`, {
+    method: 'POST',
+    headers: headersConAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ formaPago }),
   })
   return manejarRespuesta(res)
 }

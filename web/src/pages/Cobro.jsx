@@ -1,79 +1,57 @@
-import { useState, useEffect } from 'react'
-import { obtenerCuentasPendientes, registrarPago } from '@/Services/cajaService'
+import { useState, useEffect, useCallback } from 'react'
+import { obtenerCuentasPendientes } from '@/Services/cajaService'
+import PanelCobro from '@/components/cobro/PanelCobro'
 
 export default function Cobro() {
   const [cuentas, setCuentas] = useState([])
-  const [cuentaSeleccionada, setCuentaSeleccionada] = useState(null)
-  const [formaPago, setFormaPago] = useState('efectivo')
-  const [montoEntregado, setMontoEntregado] = useState('')
+  const [seleccionadaId, setSeleccionadaId] = useState(null)
   const [cargando, setCargando] = useState(true)
-  const [procesando, setProcesando] = useState(false)
   const [error, setError] = useState(null)
 
   // Cargar cuentas pendientes gestionando las Promesas explícitamente para el Linter
-  const cargarCuentas = () => {
-    obtenerCuentasPendientes()
-      .then((data) => {
-        setCuentas(data || [])
-        setError(null)
-      })
-      .catch((err) => {
-        console.error('Error al obtener cuentas pendientes:', err)
-        setError('No se pudieron obtener las cuentas pendientes.')
-      })
-      .finally(() => setCargando(false))
-  }
+  const cargarCuentas = useCallback(
+    () =>
+      obtenerCuentasPendientes()
+        .then((data) => {
+          setCuentas(data || [])
+          setError(null)
+        })
+        .catch((err) => {
+          console.error('Error al obtener cuentas pendientes:', err)
+          setError('No se pudieron obtener las cuentas pendientes.')
+        })
+        .finally(() => setCargando(false)),
+    []
+  )
 
   // Refresco automático cada 10 segundos
   useEffect(() => {
     cargarCuentas()
     const interval = setInterval(cargarCuentas, 10000)
     return () => clearInterval(interval)
-  }, [])
+  }, [cargarCuentas])
 
-  // Cálculos financieros
-  const totalCuenta = Number(cuentaSeleccionada?.total || 0)
-  const efectivoRecibido = Number(montoEntregado || 0)
-  const cambio = formaPago === 'efectivo' ? Math.max(0, efectivoRecibido - totalCuenta) : 0
+  // La cuenta seleccionada se toma de la lista actual, así siempre refleja la división y los pagos.
+  const cuentaSeleccionada = cuentas.find((c) => c.id === seleccionadaId) || null
 
-  // Procesar cobro en el backend
-  const handleProcesarPago = (e) => {
-    e.preventDefault()
-    if (!cuentaSeleccionada) return
+  const seleccionar = (id) => {
+    setSeleccionadaId(id)
+    // En pantallas chicas el panel queda debajo de la lista: se lleva la vista hasta él.
+    setTimeout(() => document.getElementById('panel-cobro')?.scrollIntoView({ behavior: 'smooth' }), 60)
+  }
 
-    if (formaPago === 'efectivo' && efectivoRecibido < totalCuenta) {
-      alert('El monto ingresado es inferior al total de la cuenta.')
-      return
-    }
-
-    setProcesando(true)
-
-    // registrarPago(cuentaId, formaPago, montoTotal)
-    registrarPago(cuentaSeleccionada.id, formaPago, totalCuenta)
-      .then(() => {
-        alert('¡Pago procesado con éxito! La mesa ha sido liberada.')
-        setCuentaSeleccionada(null)
-        setMontoEntregado('')
-        cargarCuentas()
-      })
-      .catch((err) => {
-        console.error('Error al procesar pago:', err)
-        alert(`No se pudo registrar el pago: ${err.message || 'Revisa la conexión.'}`)
-      })
-      .finally(() => {
-        setProcesando(false)
-      })
+  const alCerrarCuenta = () => {
+    setSeleccionadaId(null)
+    cargarCuentas()
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
       {/* Encabezado */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Caja y Cobro 💵</h1>
-          <p className="text-sm text-gray-500">
-            Gestiona los pagos de las mesas pendientes de cobro.
-          </p>
+          <p className="text-sm text-gray-500">Gestiona los pagos de las mesas pendientes de cobro.</p>
         </div>
 
         <button
@@ -86,9 +64,7 @@ export default function Cobro() {
 
       {/* Estado de Carga */}
       {cargando && (
-        <div className="py-20 text-center text-gray-400 font-medium animate-pulse">
-          Cargando cuentas de la caja...
-        </div>
+        <div className="py-20 text-center text-gray-400 font-medium animate-pulse">Cargando cuentas de la caja...</div>
       )}
 
       {/* Estado de Error */}
@@ -118,14 +94,13 @@ export default function Cobro() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {cuentas.map((c) => {
-                  const esSeleccionada = cuentaSeleccionada?.id === c.id
+                  const esSeleccionada = seleccionadaId === c.id
+                  const partes = c.divisiones || []
+                  const pagadas = partes.filter((p) => (p.pagos || []).length > 0).length
                   return (
                     <div
                       key={c.id}
-                      onClick={() => {
-                        setCuentaSeleccionada(c)
-                        setMontoEntregado('')
-                      }}
+                      onClick={() => seleccionar(c.id)}
                       className={`p-5 rounded-2xl border transition-all cursor-pointer ${
                         esSeleccionada
                           ? 'bg-blue-50/50 border-blue-600 shadow-md ring-2 ring-blue-500/20'
@@ -135,19 +110,21 @@ export default function Cobro() {
                       <div className="flex justify-between items-start mb-2">
                         <div>
                           <span className="text-xs font-bold text-gray-400 uppercase">Mesa</span>
-                          <h3 className="text-xl font-bold text-gray-800">
-                            #{c.sesionMesa?.mesa?.numero || 'S/N'}
-                          </h3>
+                          <h3 className="text-xl font-bold text-gray-800">#{c.sesionMesa?.mesa?.numero || 'S/N'}</h3>
                         </div>
-                        <span className="text-lg font-extrabold text-emerald-600">
-                          ${Number(c.total || 0).toFixed(2)}
-                        </span>
+                        <span className="text-lg font-extrabold text-emerald-600">${Number(c.total || 0).toFixed(2)}</span>
                       </div>
 
                       <div className="text-xs text-gray-500 space-y-0.5">
                         <p>Mesero: {c.sesionMesa?.mesero?.nombreCompleto || 'Sin asignar'}</p>
                         {c.sesionMesa?.numComensales ? <p>Comensales: {c.sesionMesa.numComensales}</p> : null}
                       </div>
+
+                      {partes.length > 0 && (
+                        <span className="mt-3 inline-block rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-bold text-blue-700">
+                          ✂️ Dividida · {pagadas} de {partes.length} pagadas
+                        </span>
+                      )}
                     </div>
                   )
                 })}
@@ -156,90 +133,20 @@ export default function Cobro() {
           </div>
 
           {/* Panel de Procesamiento de Pago */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm h-fit space-y-6">
-            <h2 className="text-base font-bold text-gray-800 border-b border-gray-100 pb-3">
-              Detalle del Cobro
-            </h2>
+          <div id="panel-cobro" className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm h-fit space-y-6 scroll-mt-20">
+            <h2 className="text-base font-bold text-gray-800 border-b border-gray-100 pb-3">Detalle del Cobro</h2>
 
             {!cuentaSeleccionada ? (
               <div className="py-12 text-center text-gray-400 text-sm">
                 Selecciona una mesa de la lista para procesar el pago.
               </div>
             ) : (
-              <form onSubmit={handleProcesarPago} className="space-y-5">
-                {/* Info de la cuenta */}
-                <div className="bg-gray-50 p-4 rounded-xl space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Mesa:</span>
-                    <span className="font-bold text-gray-800">
-                      Mesa #{cuentaSeleccionada.sesionMesa?.mesa?.numero ?? 'S/N'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-base font-bold">
-                    <span className="text-gray-700">Total a Pagar:</span>
-                    <span className="text-emerald-600 text-xl">${totalCuenta.toFixed(2)}</span>
-                  </div>
-                </div>
-
-                {/* Selección de Forma de Pago */}
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-600 uppercase">Forma de Pago</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { id: 'efectivo', label: '💵 Efectivo' },
-                      { id: 'otro', label: '📱 Otro' },
-                    ].map((m) => (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => setFormaPago(m.id)}
-                        className={`py-2 px-1 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
-                          formaPago === m.id
-                            ? 'bg-gray-900 text-white border-gray-900 shadow-sm'
-                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        {m.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Ingreso de Efectivo y Cálculo de Cambio */}
-                {formaPago === 'efectivo' && (
-                  <div className="space-y-3 pt-2">
-                    <div>
-                      <label className="text-xs font-bold text-gray-600 uppercase block mb-1">
-                        Efectivo Recibido ($)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min={totalCuenta}
-                        placeholder={totalCuenta.toFixed(2)}
-                        value={montoEntregado}
-                        onChange={(e) => setMontoEntregado(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-gray-800 text-lg"
-                        required
-                      />
-                    </div>
-
-                    <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-xl text-emerald-800 text-sm font-bold">
-                      <span>Cambio / Vueltas:</span>
-                      <span className="text-lg">${cambio.toFixed(2)}</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Botón de Confirmación */}
-                <button
-                  type="submit"
-                  disabled={procesando}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  {procesando ? 'Procesando Pago...' : 'Confirmar y Cerrar Cuenta ✅'}
-                </button>
-              </form>
+              <PanelCobro
+                key={cuentaSeleccionada.id}
+                cuenta={cuentaSeleccionada}
+                onActualizar={cargarCuentas}
+                onCuentaCerrada={alCerrarCuenta}
+              />
             )}
           </div>
         </div>
