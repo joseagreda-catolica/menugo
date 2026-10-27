@@ -1,5 +1,5 @@
 import { resolverFoto } from "@/config"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   obtenerPlatillos,
@@ -26,6 +26,23 @@ export function Platillos() {
   const [vistaPrevia, setVistaPrevia] = useState("")
   const [editandoId, setEditandoId] = useState(null)
   const [guardando, setGuardando] = useState(false)
+  const [descripcion, setDescripcion] = useState("")
+  const [tiempoPreparacion, setTiempoPreparacion] = useState("")
+  const [error, setError] = useState("")
+
+  // Platillos agrupados por categoria (en el orden de las categorias) y, dentro de cada
+  // una, por su orden de presentacion.
+  const platillosOrdenados = useMemo(() => {
+    const ordenCategoria = (p) =>
+      categorias.find((c) => c.id === p.categoriaId)?.orden ?? Number.MAX_SAFE_INTEGER
+    return [...platillos].sort(
+      (a, b) =>
+        ordenCategoria(a) - ordenCategoria(b) ||
+        a.categoriaId - b.categoriaId ||
+        (a.orden || 0) - (b.orden || 0) ||
+        a.id - b.id
+    )
+  }, [platillos, categorias])
 
   // Carga inicial de datos desde la API/BD
   useEffect(() => {
@@ -104,12 +121,15 @@ export function Platillos() {
     if (!nombre || !precio) return
 
     setGuardando(true)
+    setError("")
 
     const payload = {
       nombre,
       precio: Number(precio),
       categoriaId: categoriaId ? Number(categoriaId) : null,
+      descripcion: descripcion.trim(),
     }
+    if (tiempoPreparacion !== "") payload.tiempoPreparacionMin = Number(tiempoPreparacion)
 
     try {
       let idPlatilloGuardado = editandoId
@@ -117,6 +137,11 @@ export function Platillos() {
       if (editandoId) {
         await actualizarPlatillo(editandoId, payload)
       } else {
+        // Un platillo nuevo queda al final de su categoria (RF-05).
+        const ordenes = platillos
+          .filter((p) => String(p.categoriaId) === String(categoriaId))
+          .map((p) => p.orden || 0)
+        payload.orden = (ordenes.length ? Math.max(...ordenes) : 0) + 1
         const nuevoPlatillo = await crearPlatillo(payload)
         idPlatilloGuardado = nuevoPlatillo?.id || nuevoPlatillo?.data?.id
       }
@@ -129,6 +154,7 @@ export function Platillos() {
       await recargarDatos()
     } catch (error) {
       console.error("Error guardando el platillo en la BD:", error)
+      setError(error.message || "No se pudo guardar el platillo.")
     } finally {
       setGuardando(false)
     }
@@ -159,12 +185,41 @@ export function Platillos() {
     setCategoriaId(p.categoriaId || (categorias[0] ? categorias[0].id : ""))
     setVistaPrevia(resolverFoto(p.fotoUrl))
     setArchivoFoto(null)
+    setDescripcion(p.descripcion || "")
+    setTiempoPreparacion(p.tiempoPreparacionMin ? String(p.tiempoPreparacionMin) : "")
+    setError("")
+  }
+
+  // RF-05: orden de los platillos dentro de su categoria. Se intercambia con el vecino y
+  // se renumera la categoria completa para que no queden empates.
+  const handleMover = async (platillo, direccion) => {
+    const grupo = platillosOrdenados.filter((p) => p.categoriaId === platillo.categoriaId)
+    const indice = grupo.findIndex((p) => p.id === platillo.id)
+    const destino = indice + direccion
+    if (destino < 0 || destino >= grupo.length) return
+
+    const nuevoOrden = [...grupo]
+    ;[nuevoOrden[indice], nuevoOrden[destino]] = [nuevoOrden[destino], nuevoOrden[indice]]
+    const cambios = nuevoOrden
+      .map((p, i) => ({ p, orden: i + 1 }))
+      .filter(({ p, orden }) => p.orden !== orden)
+
+    try {
+      setError("")
+      await Promise.all(cambios.map(({ p, orden }) => actualizarPlatillo(p.id, { orden })))
+      await recargarDatos()
+    } catch (err) {
+      setError(err.message || "No se pudo cambiar el orden.")
+      await recargarDatos()
+    }
   }
 
   const limpiarFormulario = () => {
     setEditandoId(null)
     setNombre("")
     setPrecio("")
+    setDescripcion("")
+    setTiempoPreparacion("")
     setArchivoFoto(null)
     setVistaPrevia("")
     if (categorias.length > 0) {
@@ -290,6 +345,45 @@ export function Platillos() {
               </div>
             </div>
 
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div>
+                <label
+                  htmlFor="tiempo-preparacion"
+                  className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5"
+                >
+                  Tiempo de preparación (min)
+                </label>
+                <input
+                  id="tiempo-preparacion"
+                  type="number"
+                  min="1"
+                  max="240"
+                  step="1"
+                  placeholder="Ej. 15"
+                  value={tiempoPreparacion}
+                  onChange={(e) => setTiempoPreparacion(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700 outline-none transition focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label
+                  htmlFor="descripcion-platillo"
+                  className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5"
+                >
+                  Descripción
+                </label>
+                <textarea
+                  id="descripcion-platillo"
+                  rows={2}
+                  placeholder="Ingredientes o detalles que verá el cliente en la carta"
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
+                  className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700 outline-none transition focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100"
+                />
+              </div>
+            </div>
+
             <div className="pt-2">
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                 Imagen Representativa
@@ -309,6 +403,12 @@ export function Platillos() {
                 )}
               </div>
             </div>
+
+            {error && (
+              <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-700" role="alert">
+                {error}
+              </p>
+            )}
 
             <div className="flex gap-2 pt-2">
               <button
@@ -362,7 +462,9 @@ export function Platillos() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm">
-                  {platillos.map((p) => {
+                  {platillosOrdenados.map((p) => {
+                    const grupo = platillosOrdenados.filter((otro) => otro.categoriaId === p.categoriaId)
+                    const posicion = grupo.findIndex((otro) => otro.id === p.id)
                     const catNombre =
                       categorias.find((c) => String(c.id) === String(p.categoriaId))
                         ?.nombre || p.categoriaNombre || "Sin Categoría"
@@ -422,12 +524,34 @@ export function Platillos() {
                         </td>
 
                         <td className="p-4 pr-6 text-right">
-                          <button
-                            onClick={() => handleEditar(p)}
-                            className="rounded-xl bg-amber-500 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-amber-600 active:scale-95 cursor-pointer"
-                          >
-                            Editar
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleMover(p, -1)}
+                              disabled={posicion === 0}
+                              aria-label={`Subir ${p.nombre} dentro de su categoría`}
+                              title="Subir dentro de la categoría"
+                              className="h-8 w-8 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMover(p, 1)}
+                              disabled={posicion === grupo.length - 1}
+                              aria-label={`Bajar ${p.nombre} dentro de su categoría`}
+                              title="Bajar dentro de la categoría"
+                              className="h-8 w-8 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                            >
+                              ↓
+                            </button>
+                            <button
+                              onClick={() => handleEditar(p)}
+                              className="rounded-xl bg-amber-500 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-amber-600 active:scale-95 cursor-pointer"
+                            >
+                              Editar
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )
