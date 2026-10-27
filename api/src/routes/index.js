@@ -10,6 +10,7 @@ const cuentaRoutes = require('./cuenta.routes');
 const cajaRoutes = require('./caja.routes');
 const pagoRoutes = require('./pago.routes'); // 👈 1. Importar pago.routes.js
 const reporteRoutes = require('./reporte.routes');
+const configuracionRoutes = require('./configuracion.routes');
 
 const router = Router();
 
@@ -28,6 +29,7 @@ router.use('/caja', cajaRoutes);
 router.use('/pagos', pagoRoutes);
 router.use('/pago', pagoRoutes);
 router.use('/reportes', reporteRoutes);
+router.use('/configuracion', configuracionRoutes);
 
 // Rutas de Mesas y Secciones
 router.use('/', mesaRoutes);

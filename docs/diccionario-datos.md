@@ -166,3 +166,13 @@ Regla (RF-22): la suma de `monto` de las divisiones de una cuenta debe ser igual
 | entidad_id | INTEGER | No | — | Id del registro afectado dentro de esa tabla. |
 | detalle | JSONB | Sí | NULL | Datos adicionales del evento (valores antes/después). Se usa JSONB, como ya está justificado en la propuesta para notas de preparación. |
 | creado_en | TIMESTAMP | No | now() | |
+
+## configuracion
+
+Parámetros que el administrador ajusta sin tocar código. Tabla clave-valor sin relaciones. Hoy guarda un único parámetro.
+
+| Campo | Tipo | Nulo | Default | Descripción / regla de negocio |
+|---|---|---|---|---|
+| clave | VARCHAR(60) PK | No | — | Nombre del parámetro. Valor actual: `umbral_espera_min`. |
+| valor | VARCHAR(200) | No | — | Valor como texto. Para `umbral_espera_min`: minutos (1 a 240) que una comanda puede esperar en cocina antes de destacarse (RF-20). Si no existe la fila, el sistema usa 15. |
+| actualizado_en | TIMESTAMP | No | now() | Se actualiza en cada cambio. |

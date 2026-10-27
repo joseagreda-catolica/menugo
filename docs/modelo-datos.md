@@ -1,6 +1,6 @@
 # Modelo de datos — MenúGo
 
-Modelo entidad-relación completo (13 entidades) que sustenta los 8 módulos de la propuesta. El detalle campo por campo está en [`diccionario-datos.md`](diccionario-datos.md); las transiciones de estado en [`maquinas-estado.md`](maquinas-estado.md).
+Modelo entidad-relación completo (13 entidades del dominio, más la tabla auxiliar `configuracion`) que sustenta los 8 módulos de la propuesta. El detalle campo por campo está en [`diccionario-datos.md`](diccionario-datos.md); las transiciones de estado en [`maquinas-estado.md`](maquinas-estado.md).
 
 ## Diagrama entidad-relación
 

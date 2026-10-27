@@ -40,6 +40,7 @@ router.get('/', async (req, res) => {
       where: { estado: 'abierto', sesionMesa: { cerradaEn: null } },
       include: {
         lineas: {
+          orderBy: { id: 'asc' },
           include: {
             platillo: true,
           },
@@ -56,8 +57,9 @@ router.get('/', async (req, res) => {
           },
         },
       },
+      // RF-17: la comanda mas antigua primero, que es la que mas urge.
       orderBy: {
-        abiertoEn: 'desc',
+        abiertoEn: 'asc',
       },
     });
 

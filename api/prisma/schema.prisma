@@ -227,6 +227,16 @@ model CorteCaja {
   @@map("corte_caja")
 }
 
+// Parametros que el administrador puede ajustar sin tocar codigo. Hoy solo guarda el
+// umbral de espera de cocina (RF-20), con clave "umbral_espera_min".
+model Configuracion {
+  clave         String   @id @db.VarChar(60)
+  valor         String   @db.VarChar(200)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en")
+
+  @@map("configuracion")
+}
+
 model Bitacora {
   id        Int      @id @default(autoincrement())
   usuarioId Int      @map("usuario_id")
