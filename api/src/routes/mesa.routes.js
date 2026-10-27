@@ -54,6 +54,8 @@ router.get('/mesas', async (req, res) => {
         activa: Boolean(m.activa),
         estado: sesionActiva ? sesionActiva.estado : 'libre',
         sesionId: sesionActiva ? sesionActiva.id : null,
+        // RF-12: hora de apertura de la sesion, para mostrar el tiempo de ocupacion.
+        abiertaEn: sesionActiva ? sesionActiva.abiertaEn : null,
       };
     });
 

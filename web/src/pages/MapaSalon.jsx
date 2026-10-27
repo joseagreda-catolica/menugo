@@ -3,6 +3,13 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { obtenerMesas } from '@/Services/mesasService'
 
+// RF-12: "12 min" o "1 h 05 min".
+function formatearTiempo(ms) {
+  const minutos = Math.max(0, Math.floor(ms / 60000))
+  if (minutos < 60) return `${minutos} min`
+  return `${Math.floor(minutos / 60)} h ${String(minutos % 60).padStart(2, '0')} min`
+}
+
 export default function MapaSalon() {
   const navigate = useNavigate()
 
@@ -10,6 +17,7 @@ export default function MapaSalon() {
   const [cargando, setCargando] = useState(true)
   const [seccionFiltro, setSeccionFiltro] = useState('todas')
   const [busqueda, setBusqueda] = useState('')
+  const [ahora, setAhora] = useState(() => Date.now())
 
   // Modal de cambio de estado / acciones
   const [mesaSeleccionada, setMesaSeleccionada] = useState(null)
@@ -31,6 +39,7 @@ export default function MapaSalon() {
             estado: m.estado || 'libre',
           }))
         setMesas(mesasNormalizadas)
+        setAhora(Date.now())
       }
     } catch (error) {
       console.error('Error al cargar mesas desde la API:', error)
@@ -42,6 +51,9 @@ export default function MapaSalon() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     cargarMesasBD()
+    // El mapa se refresca solo para reflejar lo que hacen meseros, cocina y caja.
+    const intervalo = setInterval(cargarMesasBD, 8000)
+    return () => clearInterval(intervalo)
   }, [cargarMesasBD])
 
   // Cambiar el estado de una mesa en la BD y en la interfaz
@@ -463,6 +475,15 @@ export default function MapaSalon() {
                     <span className="truncate text-xs font-semibold text-slate-600">
                       {mesa.capacidad} personas
                     </span>
+
+                    {mesa.abiertaEn && (
+                      <span
+                        className="ml-auto shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600"
+                        title="Tiempo de ocupación"
+                      >
+                        ⏱ {formatearTiempo(ahora - new Date(mesa.abiertaEn).getTime())}
+                      </span>
+                    )}
                   </div>
 
                   {/* FOOTER */}
