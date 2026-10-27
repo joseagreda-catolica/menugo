@@ -11,10 +11,12 @@ const cajaRoutes = require('./caja.routes');
 const pagoRoutes = require('./pago.routes'); // 👈 1. Importar pago.routes.js
 const reporteRoutes = require('./reporte.routes');
 const configuracionRoutes = require('./configuracion.routes');
+const docsRoutes = require('./docs.routes');
 
 const router = Router();
 
 router.get('/health', (req, res) => res.json({ ok: true }));
+router.use('/docs', docsRoutes);
 router.use('/auth', authRoutes);
 router.use('/usuarios', usuarioRoutes);
 router.use('/categorias', categoriaRoutes);

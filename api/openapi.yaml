@@ -1,0 +1,1239 @@
+openapi: 3.0.3
+info:
+  title: MenúGo API
+  version: 1.0.0
+  description: |
+    API REST de MenúGo, el sistema de pedidos y comandas para restaurantes pequeños.
+
+    **Autenticación.** Todas las rutas internas exigen un token JWT en la cabecera
+    `Authorization: Bearer <token>`, que se obtiene en `POST /auth/login`. Las únicas rutas públicas
+    son `/health`, `/auth/login` y `/carta-publica`.
+
+    **Roles.** `administrador`, `mesero`, `cocinero` y `cajero`. Cada operación indica qué roles
+    pueden usarla; con otro rol responde `403 SIN_PERMISO`.
+
+    **Errores.** Siguen un formato único: `{ "error": { "code": "...", "message": "..." } }`.
+    Las validaciones de datos agregan `detalles` con el campo y el mensaje.
+
+    **Importes.** Siempre en dólares, con dos decimales.
+servers:
+  - url: http://localhost:3000/api
+    description: Servidor de desarrollo
+tags:
+  - name: Sistema
+  - name: Autenticación
+  - name: Carta
+    description: Categorías, platillos y carta pública (módulos M1 y M2).
+  - name: Mesas
+    description: Mapa del salón y administración de mesas (módulo M3).
+  - name: Pedidos
+    description: Toma de pedidos y pantalla de cocina (módulos M4 y M5).
+  - name: Cuentas
+    description: Cobro y división de cuentas (módulo M6).
+  - name: Caja
+    description: Turno y corte de caja (módulo M6).
+  - name: Reportes
+    description: Reportes de ventas (módulo M7).
+  - name: Configuración
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [Sistema]
+      summary: Comprueba que el API está en línea
+      security: []
+      responses:
+        '200':
+          description: El API responde.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+
+  /auth/login:
+    post:
+      tags: [Autenticación]
+      summary: Inicia sesión (RF-28)
+      description: |
+        Devuelve un token JWT válido por 8 horas. Tras 30 intentos fallidos desde la misma dirección
+        en 15 minutos responde `429`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email, example: mesero@rinconsantaneco.com }
+                password: { type: string, example: menugo123 }
+      responses:
+        '200':
+          description: Sesión iniciada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  usuario: { $ref: '#/components/schemas/Usuario' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '401':
+          description: Correo o contraseña incorrectos (`CREDENCIALES_INVALIDAS`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: Demasiados intentos fallidos (`DEMASIADOS_INTENTOS`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /usuarios/yo:
+    get:
+      tags: [Autenticación]
+      summary: Datos del usuario con la sesión iniciada
+      responses:
+        '200':
+          description: Usuario autenticado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /categorias:
+    get:
+      tags: [Carta]
+      summary: Lista las categorías, por su orden (RF-01, RF-05)
+      description: 'Roles: todos.'
+      responses:
+        '200':
+          description: Categorías.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Categoria' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+    post:
+      tags: [Carta]
+      summary: Crea una categoría (RF-01)
+      description: 'Roles: administrador.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombre]
+              properties:
+                nombre: { type: string, example: Postres }
+                descripcion: { type: string }
+                orden: { type: integer }
+      responses:
+        '201':
+          description: Categoría creada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Categoria' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /categorias/{id}:
+    patch:
+      tags: [Carta]
+      summary: Modifica, reordena o desactiva una categoría (RF-01, RF-05)
+      description: 'Roles: administrador. No existe DELETE: desactivar es `activa: false` (RNF-10).'
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre: { type: string }
+                descripcion: { type: string }
+                orden: { type: integer }
+                activa: { type: boolean }
+      responses:
+        '200':
+          description: Categoría actualizada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Categoria' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /platillos:
+    get:
+      tags: [Carta]
+      summary: Lista los platillos con su precio vigente
+      description: 'Roles: todos.'
+      responses:
+        '200':
+          description: Platillos ordenados por categoría y por su orden de presentación.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Platillo' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+    post:
+      tags: [Carta]
+      summary: Crea un platillo (RF-02)
+      description: 'Roles: administrador. Registra también su primer precio en el historial.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [categoriaId, nombre, precio]
+              properties:
+                categoriaId: { type: integer }
+                nombre: { type: string }
+                descripcion: { type: string }
+                precio: { type: number, minimum: 0.01, example: 4.5 }
+                fotoUrl: { type: string }
+                tiempoPreparacionMin: { type: integer, minimum: 1, example: 15 }
+                orden: { type: integer }
+      responses:
+        '201':
+          description: Platillo creado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Platillo' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /platillos/{id}:
+    patch:
+      tags: [Carta]
+      summary: Modifica un platillo (RF-02, RF-04, RF-05)
+      description: |
+        Roles: administrador. Si cambia el precio, se cierra el precio vigente, se abre uno nuevo
+        (historial, RF-04) y queda una fila `cambio_precio` en la bitácora (RF-30). Los pedidos ya
+        hechos conservan su precio.
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                categoriaId: { type: integer }
+                nombre: { type: string }
+                descripcion: { type: string }
+                precio: { type: number, minimum: 0.01 }
+                fotoUrl: { type: string }
+                tiempoPreparacionMin: { type: integer, minimum: 1 }
+                orden: { type: integer }
+                activo: { type: boolean }
+      responses:
+        '200':
+          description: Platillo actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Platillo' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /platillos/{id}/disponibilidad:
+    patch:
+      tags: [Carta]
+      summary: Marca un platillo como agotado o disponible (RF-03)
+      description: 'Roles: administrador. El cambio se refleja de inmediato en la carta pública.'
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [disponible]
+              properties:
+                disponible: { type: boolean }
+      responses:
+        '200':
+          description: Platillo actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Platillo' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /platillos/{id}/imagen:
+    post:
+      tags: [Carta]
+      summary: Sube la fotografía de un platillo (RF-02)
+      description: |
+        Roles: administrador. Solo acepta JPG, PNG o WebP de hasta 5 MB (`TIPO_ARCHIVO_INVALIDO` en
+        otro caso). Se guarda en Cloudinary si está configurado y, si no, en el servidor como
+        `/uploads/<archivo>`.
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [imagen]
+              properties:
+                imagen: { type: string, format: binary }
+      responses:
+        '200':
+          description: Imagen guardada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fotoUrl: { type: string, example: /uploads/1790955414660-plato.png }
+        '400':
+          description: El archivo no es una imagen permitida.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /carta-publica:
+    get:
+      tags: [Carta]
+      summary: Carta digital pública (RF-06, RF-07, RF-08)
+      description: |
+        No exige autenticación. Devuelve solo categorías y platillos activos; los agotados se
+        incluyen marcados con `disponible: false`.
+      security: []
+      parameters:
+        - name: categoria
+          in: query
+          description: Id de la categoría a mostrar.
+          schema: { type: integer }
+        - name: buscar
+          in: query
+          description: Texto a buscar en el nombre de los platillos.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Categorías con sus platillos.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/Categoria'
+                    - type: object
+                      properties:
+                        platillos:
+                          type: array
+                          items: { $ref: '#/components/schemas/Platillo' }
+
+  /mesas:
+    get:
+      tags: [Mesas]
+      summary: Mapa de mesas con su estado actual (RF-11, RF-12)
+      description: |
+        Roles: administrador, mesero. El estado `libre` no se guarda: se deduce de que la mesa no
+        tenga una sesión abierta. `abiertaEn` permite mostrar el tiempo de ocupación.
+      responses:
+        '200':
+          description: Mesas.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Mesa' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+    post:
+      tags: [Mesas]
+      summary: Registra una mesa (RF-09)
+      description: 'Roles: administrador.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [numero, capacidad]
+              properties:
+                numero: { type: integer, example: 9 }
+                capacidad: { type: integer, example: 4 }
+                ubicacion: { type: string, example: Terraza }
+      responses:
+        '201':
+          description: Mesa creada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Mesa' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /mesas/{id}:
+    put:
+      tags: [Mesas]
+      summary: Modifica una mesa o cambia su estado
+      description: |
+        Roles: administrador (puede cambiar `numero`, `capacidad`, `ubicacion` y `activa`) y mesero
+        (solo `estado`). Con `estado` abre, actualiza o libera la sesión de la mesa, dentro de una
+        transacción con bloqueo de fila (RNF-07). Liberar una mesa con pedidos abiertos o con
+        cuenta pendiente responde `409 MESA_CON_CUENTA_PENDIENTE`.
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                numero: { type: integer }
+                capacidad: { type: integer }
+                ubicacion: { type: string }
+                activa: { type: boolean }
+                estado:
+                  type: string
+                  enum: [libre, ocupada, pedido_en_curso, pendiente_cobro]
+                numComensales: { type: integer }
+      responses:
+        '200':
+          description: Mesa con su estado final.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Mesa' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: La mesa tiene pedidos o una cuenta pendiente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      tags: [Mesas]
+      summary: Da de baja una mesa (RNF-10)
+      description: |
+        Roles: administrador. Una mesa con historial de pedidos se desactiva en vez de borrarse
+        (`desactivada: true`); una sin historial se elimina; una con sesión abierta responde `409`.
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Mesa eliminada o desactivada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  desactivada: { type: boolean }
+                  mensaje: { type: string }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: La mesa tiene una sesión abierta.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /secciones:
+    get:
+      tags: [Mesas]
+      summary: Secciones del salón
+      description: 'Roles: administrador, mesero.'
+      responses:
+        '200':
+          description: Secciones disponibles.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer }
+                    nombre: { type: string }
+
+  /pedidos:
+    get:
+      tags: [Pedidos]
+      summary: Comandas vivas para la pantalla de cocina (RF-17, RF-18)
+      description: |
+        Roles: administrador, mesero, cocinero. Solo pedidos abiertos de mesas que siguen atendidas,
+        de la comanda más antigua a la más reciente. La pantalla de cocina la consulta cada 3 segundos.
+      responses:
+        '200':
+          description: Pedidos con sus platillos y la mesa.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Pedido' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+    post:
+      tags: [Pedidos]
+      summary: Envía una comanda (RF-13, RF-14, RF-21)
+      description: |
+        Roles: administrador, mesero. Abre la sesión de la mesa si no la tenía (con bloqueo de fila,
+        RNF-07), asigna como mesero al usuario autenticado y suma el pedido a la cuenta. **El
+        servidor resuelve el precio vigente de cada platillo**: nunca se confía en uno enviado por el
+        cliente. Rechaza cantidades fuera de 1 a 99, platillos inexistentes o sin precio, y platillos
+        agotados.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mesaId, lineas]
+              properties:
+                mesaId: { type: integer }
+                lineas:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [platilloId, cantidad]
+                    properties:
+                      platilloId: { type: integer }
+                      cantidad: { type: integer, minimum: 1, maximum: 99 }
+                      notaPreparacion: { type: string, maxLength: 200, example: sin cebolla }
+      responses:
+        '201':
+          description: Pedido creado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  pedido: { $ref: '#/components/schemas/Pedido' }
+                  sesionMesa:
+                    type: object
+                    properties:
+                      id: { type: integer }
+                      estado: { type: string }
+                  cuenta: { $ref: '#/components/schemas/Cuenta' }
+        '400':
+          description: Datos inválidos (`LINEA_INVALIDA`, `PLATILLO_NO_VALIDO`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: Platillo agotado (`PLATILLO_AGOTADO`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /pedidos/lineas/{id}:
+    patch:
+      tags: [Pedidos]
+      summary: Cambia la cantidad o la nota de un platillo pendiente (RF-15)
+      description: |
+        Roles: administrador, mesero. Solo mientras el platillo no haya iniciado su preparación
+        (`409 LINEA_EN_PREPARACION`). La cuenta se ajusta con la diferencia de cantidad.
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cantidad: { type: integer, minimum: 1, maximum: 99 }
+                notaPreparacion: { type: string, maxLength: 200 }
+      responses:
+        '200':
+          description: Línea actualizada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  linea: { $ref: '#/components/schemas/PedidoLinea' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: El platillo ya inició su preparación o el pedido no está abierto.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /pedidos/lineas/{id}/estado:
+    patch:
+      tags: [Pedidos]
+      summary: Cambia el estado de un platillo (RF-15, RF-19)
+      description: |
+        Sigue la máquina de estados de `docs/maquinas-estado.md`; cualquier otra transición responde
+        `409 TRANSICION_INVALIDA`.
+
+        | De | A | Roles |
+        |---|---|---|
+        | pendiente | en_preparacion | cocinero, administrador |
+        | en_preparacion | listo | cocinero, administrador |
+        | listo | entregado | mesero, cocinero, administrador |
+        | pendiente | anulada | mesero, administrador |
+
+        Retirar un platillo pendiente (`anulada`) descuenta su importe de la cuenta abierta.
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [estado]
+              properties:
+                estado:
+                  type: string
+                  enum: [pendiente, en_preparacion, listo, entregado, anulada]
+      responses:
+        '200':
+          description: Línea actualizada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  linea: { $ref: '#/components/schemas/PedidoLinea' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '403':
+          description: El rol no puede hacer ese cambio (`ROL_NO_PERMITIDO`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: Transición no permitida (`TRANSICION_INVALIDA`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /pedidos/{id}/estado:
+    patch:
+      tags: [Pedidos]
+      summary: Anula un pedido completo (RF-16)
+      description: |
+        Roles: administrador, mesero, cocinero. Anular exige `motivo`; es una baja lógica (RNF-10):
+        los platillos pasan a `anulada`, el importe se descuenta de la cuenta y queda una fila
+        `anulacion_pedido` en la bitácora con el usuario responsable (RF-30). No se puede anular un
+        pedido ya cobrado (`PEDIDO_COBRADO`) ni dos veces (`PEDIDO_YA_ANULADO`).
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [estado]
+              properties:
+                estado:
+                  type: string
+                  enum: [abierto, cerrado, anulado]
+                motivo:
+                  type: string
+                  description: Obligatorio cuando `estado` es `anulado`.
+                  example: El cliente se retiró
+      responses:
+        '200':
+          description: Pedido actualizado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  pedido: { $ref: '#/components/schemas/Pedido' }
+        '400':
+          description: Falta el motivo o el estado no es válido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: El pedido ya estaba anulado o ya fue cobrado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /cuentas:
+    get:
+      tags: [Cuentas]
+      summary: Lista las cuentas
+      description: |
+        Roles: administrador, mesero, cajero. Por defecto solo las abiertas; con `estado=todas`
+        también las cerradas (con el cajero que las cobró).
+      parameters:
+        - name: estado
+          in: query
+          schema: { type: string, enum: [pendiente, todas] }
+      responses:
+        '200':
+          description: Cuentas con su consumo y sus partes.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Cuenta' }
+
+  /cuentas/pendientes:
+    get:
+      tags: [Cuentas]
+      summary: Cuentas por cobrar
+      description: 'Roles: administrador, mesero, cajero.'
+      responses:
+        '200':
+          description: Cuentas abiertas, la más antigua primero.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Cuenta' }
+
+  /cuentas/{id}/pagos:
+    post:
+      tags: [Cuentas]
+      summary: Cobra la cuenta completa (RF-23)
+      description: |
+        Roles: administrador, cajero. **El servidor cobra siempre `cuenta.total`**: el monto del
+        cliente se ignora. Registra al cajero en la cuenta, asocia el pago al turno de caja abierto
+        (abriéndolo a nombre de quien cobra si no hay uno), cierra los pedidos y libera la mesa.
+        Si la cuenta está dividida responde `409 CUENTA_DIVIDIDA`. Ruta alterna: `POST /pagos/{id}`.
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FormaDePago' }
+      responses:
+        '200':
+          description: Pago registrado y cuenta cerrada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  pago: { $ref: '#/components/schemas/Pago' }
+        '400':
+          description: Forma de pago inválida (`FORMA_PAGO_INVALIDA`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: La cuenta ya fue cobrada (`CUENTA_YA_COBRADA`) o está dividida (`CUENTA_DIVIDIDA`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /cuentas/{id}/dividir:
+    post:
+      tags: [Cuentas]
+      summary: Divide la cuenta entre varios comensales (RF-22)
+      description: |
+        Roles: administrador, cajero. Por partes iguales o asignando platillos a cada comensal. Los
+        importes se reparten en centavos enteros: las partes suman exactamente el total. Se puede
+        volver a dividir mientras no haya partes pagadas (`409 CUENTA_CON_PAGOS`).
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [modo, partes]
+                  properties:
+                    modo: { type: string, enum: [partes_iguales] }
+                    partes: { type: integer, minimum: 2, maximum: 20, example: 3 }
+                - type: object
+                  required: [modo, grupos]
+                  properties:
+                    modo: { type: string, enum: [por_lineas] }
+                    grupos:
+                      type: array
+                      minItems: 2
+                      maxItems: 20
+                      items:
+                        type: object
+                        required: [lineaIds]
+                        properties:
+                          etiqueta: { type: string, maxLength: 40, example: Ana }
+                          lineaIds:
+                            type: array
+                            minItems: 1
+                            items: { type: integer }
+      responses:
+        '200':
+          description: Cuenta con sus partes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  cuenta: { $ref: '#/components/schemas/Cuenta' }
+        '400':
+          description: |
+            Datos inválidos: `LINEAS_SIN_ASIGNAR`, `LINEA_REPETIDA` o `LINEA_INVALIDA`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '409':
+          description: La cuenta ya tiene pagos o no tiene saldo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /cuentas/{id}/division:
+    delete:
+      tags: [Cuentas]
+      summary: Deshace la división de la cuenta
+      description: 'Roles: administrador, cajero. Solo si ninguna parte se ha pagado.'
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Cuenta sin partes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  cuenta: { $ref: '#/components/schemas/Cuenta' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '409':
+          description: Ya hay partes pagadas (`CUENTA_CON_PAGOS`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /cuentas/{id}/divisiones/{divisionId}/pagos:
+    post:
+      tags: [Cuentas]
+      summary: Cobra una parte de una cuenta dividida (RF-22, RF-23)
+      description: |
+        Roles: administrador, cajero. Al pagar la última parte pendiente la cuenta se cierra y la mesa
+        se libera. Un cobro simultáneo de la misma parte solo se acepta una vez.
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - name: divisionId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FormaDePago' }
+      responses:
+        '200':
+          description: Parte cobrada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  pago: { $ref: '#/components/schemas/Pago' }
+                  cuentaCerrada: { type: boolean }
+                  partesPendientes: { type: integer }
+        '400':
+          description: Forma de pago inválida.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: La parte ya fue pagada (`PARTE_YA_PAGADA`) o la cuenta ya está cerrada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /corte-caja/actual:
+    get:
+      tags: [Caja]
+      summary: Turno de caja abierto con lo cobrado desglosado por forma de pago (RF-24)
+      description: |
+        Roles: administrador, cajero. Si no hay un turno abierto lo abre a nombre de quien consulta.
+        También disponible bajo `/caja/actual`.
+      responses:
+        '200':
+          description: Turno con sus pagos y totales.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CorteCaja' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /corte-caja/abrir:
+    post:
+      tags: [Caja]
+      summary: Abre un turno de caja
+      description: 'Roles: administrador, cajero. El turno queda a nombre del usuario autenticado.'
+      responses:
+        '201':
+          description: Turno abierto.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CorteCaja' }
+        '400':
+          description: Ya existe un turno abierto.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /corte-caja/cerrar:
+    post:
+      tags: [Caja]
+      summary: Cierra el turno de caja (RF-24)
+      description: |
+        Roles: administrador, cajero. Guarda el total por forma de pago y deja una fila `cierre_caja`
+        en la bitácora (RF-30).
+      responses:
+        '200':
+          description: Turno cerrado con sus totales.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CorteCaja' }
+        '400':
+          description: No hay un turno abierto.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /reportes/ventas:
+    get:
+      tags: [Reportes]
+      summary: Ventas por rango de fechas (RF-25)
+      description: |
+        Roles: administrador. Sin fechas, el último año. `desde` y `hasta` son días completos en hora
+        local: elegir el mismo día en ambos incluye todas las ventas de ese día.
+      parameters:
+        - { $ref: '#/components/parameters/Desde' }
+        - { $ref: '#/components/parameters/Hasta' }
+      responses:
+        '200':
+          description: Total facturado y cuentas atendidas.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  desde: { type: string, format: date-time }
+                  hasta: { type: string, format: date-time }
+                  totalFacturado: { type: number, example: 26.6 }
+                  numeroCuentas: { type: integer, example: 3 }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /reportes/ranking-platillos:
+    get:
+      tags: [Reportes]
+      summary: Platillos más y menos vendidos (RF-26)
+      description: 'Roles: administrador. Ordenado de más a menos vendido.'
+      parameters:
+        - { $ref: '#/components/parameters/Desde' }
+        - { $ref: '#/components/parameters/Hasta' }
+      responses:
+        '200':
+          description: Ranking.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    platilloId: { type: integer }
+                    nombre: { type: string }
+                    cantidadVendida: { type: integer }
+                    totalVendido: { type: number }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /reportes/distribucion-horaria:
+    get:
+      tags: [Reportes]
+      summary: Ventas por hora del día y por día de la semana (RF-27)
+      description: 'Roles: administrador.'
+      parameters:
+        - { $ref: '#/components/parameters/Desde' }
+        - { $ref: '#/components/parameters/Hasta' }
+      responses:
+        '200':
+          description: Distribución de las ventas.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  porHora:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        hora: { type: integer, minimum: 0, maximum: 23 }
+                        cantidadLineas: { type: integer }
+                        total: { type: number }
+                  porDiaSemana:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        dia: { type: integer, minimum: 0, maximum: 6, description: 0 = domingo }
+                        nombre: { type: string }
+                        cantidadLineas: { type: integer }
+                        total: { type: number }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+  /configuracion:
+    get:
+      tags: [Configuración]
+      summary: Parámetros del sistema
+      description: 'Roles: todos.'
+      responses:
+        '200':
+          description: Configuración vigente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Configuracion' }
+    put:
+      tags: [Configuración]
+      summary: Cambia el umbral de espera de cocina (RF-20)
+      description: |
+        Roles: administrador. Minutos que una comanda puede esperar en cocina antes de destacarse
+        como atrasada (1 a 240; por defecto 15).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Configuracion' }
+      responses:
+        '200':
+          description: Configuración guardada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Configuracion' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+    Desde:
+      name: desde
+      in: query
+      description: Primer día a incluir (AAAA-MM-DD).
+      schema: { type: string, format: date }
+    Hasta:
+      name: hasta
+      in: query
+      description: Último día a incluir (AAAA-MM-DD), completo.
+      schema: { type: string, format: date }
+  responses:
+    NoAutenticado:
+      description: Falta el token o no es válido.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    SinPermiso:
+      description: El rol del usuario no puede usar esta operación (`SIN_PERMISO`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NoEncontrado:
+      description: El recurso no existe.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Validacion:
+      description: Los datos enviados no son válidos (`VALIDACION`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string, example: SIN_PERMISO }
+            message: { type: string }
+            detalles:
+              type: array
+              items:
+                type: object
+                properties:
+                  campo: { type: string }
+                  mensaje: { type: string }
+    FormaDePago:
+      type: object
+      properties:
+        formaPago:
+          type: string
+          enum: [efectivo, tarjeta, otro]
+          default: efectivo
+    Configuracion:
+      type: object
+      required: [umbralEsperaMin]
+      properties:
+        umbralEsperaMin: { type: integer, minimum: 1, maximum: 240, example: 15 }
+    Usuario:
+      type: object
+      properties:
+        id: { type: integer }
+        nombreCompleto: { type: string }
+        email: { type: string, format: email }
+        rol: { type: string, enum: [administrador, mesero, cocinero, cajero] }
+    Categoria:
+      type: object
+      properties:
+        id: { type: integer }
+        nombre: { type: string }
+        descripcion: { type: string, nullable: true }
+        orden: { type: integer }
+        activa: { type: boolean }
+    Platillo:
+      type: object
+      properties:
+        id: { type: integer }
+        categoriaId: { type: integer }
+        nombre: { type: string }
+        descripcion: { type: string, nullable: true }
+        fotoUrl: { type: string, nullable: true }
+        tiempoPreparacionMin: { type: integer }
+        disponible: { type: boolean }
+        activo: { type: boolean }
+        orden: { type: integer }
+        precio: { type: number, description: Precio vigente. }
+    Mesa:
+      type: object
+      properties:
+        id: { type: integer }
+        numero: { type: integer }
+        capacidad: { type: integer }
+        ubicacion: { type: string }
+        activa: { type: boolean }
+        estado:
+          type: string
+          enum: [libre, ocupada, pedido_en_curso, pendiente_cobro]
+        sesionId: { type: integer, nullable: true }
+        abiertaEn: { type: string, format: date-time, nullable: true }
+    PedidoLinea:
+      type: object
+      properties:
+        id: { type: integer }
+        pedidoId: { type: integer }
+        platilloId: { type: integer }
+        cantidad: { type: integer }
+        precioUnitario: { type: number, description: Precio al momento de pedir (RF-04). }
+        notaPreparacion: { type: string, nullable: true }
+        estado:
+          type: string
+          enum: [pendiente, en_preparacion, listo, entregado, anulada]
+        creadaEn: { type: string, format: date-time }
+        platillo:
+          type: object
+          properties:
+            id: { type: integer }
+            nombre: { type: string }
+    Pedido:
+      type: object
+      properties:
+        id: { type: integer }
+        sesionMesaId: { type: integer }
+        meseroId: { type: integer }
+        estado: { type: string, enum: [abierto, cerrado, anulado] }
+        abiertoEn: { type: string, format: date-time }
+        motivoAnulacion: { type: string, nullable: true }
+        anuladoPor: { type: integer, nullable: true }
+        lineas:
+          type: array
+          items: { $ref: '#/components/schemas/PedidoLinea' }
+        sesionMesa:
+          type: object
+          description: Sesión de la mesa, con la mesa.
+    Pago:
+      type: object
+      properties:
+        id: { type: integer }
+        cuentaDivisionId: { type: integer }
+        formaPago: { type: string, enum: [efectivo, tarjeta, otro] }
+        monto: { type: number }
+        pagadoEn: { type: string, format: date-time }
+        corteCajaId: { type: integer, nullable: true }
+    CuentaDivision:
+      type: object
+      properties:
+        id: { type: integer }
+        cuentaId: { type: integer }
+        etiqueta: { type: string, example: Comensal 1 }
+        monto: { type: number }
+        pagos:
+          type: array
+          items: { $ref: '#/components/schemas/Pago' }
+    Cuenta:
+      type: object
+      properties:
+        id: { type: integer }
+        sesionMesaId: { type: integer }
+        total: { type: number }
+        creadaEn: { type: string, format: date-time }
+        cerradaEn: { type: string, format: date-time, nullable: true }
+        cajeroId: { type: integer, nullable: true }
+        cajero:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            nombreCompleto: { type: string }
+        sesionMesa:
+          type: object
+          description: Sesión con la mesa, el mesero y los pedidos con su consumo.
+        divisiones:
+          type: array
+          items: { $ref: '#/components/schemas/CuentaDivision' }
+    CorteCaja:
+      type: object
+      properties:
+        id: { type: integer }
+        cajeroId: { type: integer }
+        abiertoEn: { type: string, format: date-time }
+        cerradoEn: { type: string, format: date-time, nullable: true }
+        totalEfectivo: { type: number }
+        totalTarjeta: { type: number }
+        totalOtro: { type: number }
+        totalGeneral: { type: number }
+        pagos:
+          type: array
+          items: { $ref: '#/components/schemas/Pago' }
