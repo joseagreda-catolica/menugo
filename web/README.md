@@ -1,16 +1,34 @@
-# React + Vite
+# MenúGo — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + Vite + Tailwind CSS v4. Se comunica con el API de `../api`.
 
-Currently, two official plugins are available:
+## Cómo levantarlo
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev      # http://localhost:5173 (también escucha en la red local)
+npm run build    # compila para producción en dist/
+npm run lint     # ESLint
+```
 
-## React Compiler
+## Dirección del API
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Por defecto el frontend le habla al API del mismo equipo desde el que se abrió la página, en el puerto 3000 (`http://<servidor>:3000/api`), de modo que funciona igual en `localhost` y desde un celular que entra por la IP de la red local. Para apuntar a otro servidor, define `VITE_API_URL` al compilar (por ejemplo `VITE_API_URL=/api` si el API se sirve desde el mismo dominio). La lógica está en `src/config.js`.
 
-## Expanding the ESLint configuration
+## Estructura
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```
+src/
+  pages/        # una pantalla por ruta (MapaSalon, TomaPedidos, Cocina, Cobro, CodigosQR...)
+  components/   # piezas reutilizables: Layout, auth (rutas protegidas), pedidos, cocina, cobro
+  Services/     # llamadas al API por módulo
+  context/      # AuthContext: sesión, token y su vencimiento
+  config.js     # dirección del API y de las fotos
+```
+
+## Diseño y comportamiento
+
+- Responsivo desde 360 px: el menú lateral se oculta por debajo de 1024 px y se abre con el botón de hamburguesa.
+- La sesión vive en el navegador (`localStorage`) y se cierra sola cuando el token vence. Con sesión iniciada no se puede volver al login, solo salir con "Cerrar Sesión".
+- La pantalla de cocina se actualiza cada 3 s, el mapa de mesas cada 8 s y el pedido en curso cada 4 s.
+- Los códigos QR se generan en el navegador con la dirección pública que se indique en la pantalla **Códigos QR**.
