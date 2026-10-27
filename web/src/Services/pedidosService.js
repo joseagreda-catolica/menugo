@@ -34,3 +34,23 @@ export async function actualizarEstadoLinea(lineaId, estado) {
   })
   return manejarRespuesta(res)
 }
+
+// RF-15: cambia la cantidad o la nota de un platillo que aun no inicia su preparacion.
+export async function modificarLinea(lineaId, cambios) {
+  const res = await fetch(`${API_URL}/pedidos/lineas/${lineaId}`, {
+    method: 'PATCH',
+    headers: headersConAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(cambios),
+  })
+  return manejarRespuesta(res)
+}
+
+// RF-16: anula el pedido completo; el motivo es obligatorio y queda en la bitacora.
+export async function anularPedido(pedidoId, motivo) {
+  const res = await fetch(`${API_URL}/pedidos/${pedidoId}/estado`, {
+    method: 'PATCH',
+    headers: headersConAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ estado: 'anulado', motivo }),
+  })
+  return manejarRespuesta(res)
+}

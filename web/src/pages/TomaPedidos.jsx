@@ -7,6 +7,7 @@ import { obtenerCategorias, obtenerPlatillos } from "../Services/MenuService";
 import { crearPedido } from "@/Services/pedidosService";
 
 import CarritoPedido from "@/components/pedidos/CarritoPedido";
+import PedidoEnCurso from "@/components/pedidos/PedidoEnCurso";
 
 export default function TomaPedidos() {
   const [searchParams] = useSearchParams();
@@ -23,6 +24,8 @@ export default function TomaPedidos() {
 
   const [cargando, setCargando] = useState(true);
   const [enviando, setEnviando] = useState(false);
+  // Se incrementa al enviar una comanda para que el pedido en curso se recargue enseguida.
+  const [refrescoPedido, setRefrescoPedido] = useState(0);
 
   // =========================================================
   // CARGAR MESAS, CATEGORÍAS Y PLATILLOS
@@ -117,6 +120,12 @@ export default function TomaPedidos() {
           (platillo) =>
             String(platillo.categoriaId) === String(categoriaActiva)
         );
+
+  const cantidadCarrito = carritoItems.reduce((suma, item) => suma + item.cantidad, 0);
+  const totalCarrito = carritoItems.reduce(
+    (suma, item) => suma + Number(item.precio || 0) * item.cantidad,
+    0
+  );
 
   // =========================================================
   // AGREGAR PLATILLO AL CARRITO
@@ -264,6 +273,7 @@ export default function TomaPedidos() {
 
       // Limpiar carrito
       setCarritoItems([]);
+      setRefrescoPedido((n) => n + 1);
     } catch (error) {
       console.error(
         "Error al enviar la comanda:",
@@ -284,7 +294,7 @@ export default function TomaPedidos() {
   // RENDER
   // =========================================================
   return (
-    <div className="p-6 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 pb-24 lg:grid-cols-3 lg:pb-0">
 
       {/* =====================================================
           PARTE IZQUIERDA
@@ -371,6 +381,11 @@ export default function TomaPedidos() {
         </div>
 
         {/* ===================================================
+            PEDIDO YA ENVIADO DE LA MESA (RF-15, RF-16)
+        ==================================================== */}
+        <PedidoEnCurso mesa={mesaSeleccionada} refrescar={refrescoPedido} />
+
+        {/* ===================================================
             CATEGORÍAS
         ==================================================== */}
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -441,7 +456,7 @@ export default function TomaPedidos() {
 
         ) : (
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
 
             {platillosFiltrados.map((platillo) => (
 
@@ -471,7 +486,8 @@ export default function TomaPedidos() {
                 <div
                   className="
                     relative
-                    h-28
+                    h-20
+                    sm:h-28
                     w-full
                     rounded-lg
                     overflow-hidden
@@ -568,7 +584,7 @@ export default function TomaPedidos() {
       {/* =====================================================
           CARRITO
       ====================================================== */}
-      <div className="lg:col-span-1 h-[calc(100vh-6rem)] sticky top-6">
+      <div id="comanda" className="scroll-mt-20 lg:sticky lg:top-20 lg:col-span-1 lg:h-[calc(100vh-7rem)]">
 
         <CarritoPedido
           mesaSeleccionada={mesaSeleccionada}
@@ -584,6 +600,34 @@ export default function TomaPedidos() {
         />
 
       </div>
+
+      {/* =====================================================
+          BARRA INFERIOR EN CELULAR: total y acceso a la comanda
+      ====================================================== */}
+      {cantidadCarrito > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t border-gray-200 bg-white p-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] lg:hidden">
+          <div className="min-w-0">
+            <p className="truncate text-xs text-gray-500">
+              Comanda · Mesa {mesaSeleccionada?.numero}
+            </p>
+            <p className="text-sm font-bold text-gray-800">
+              {cantidadCarrito} {cantidadCarrito === 1 ? "platillo" : "platillos"} · $
+              {totalCarrito.toFixed(2)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              document
+                .getElementById("comanda")
+                ?.scrollIntoView({ behavior: "smooth" })
+            }
+            className="shrink-0 cursor-pointer rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-orange-600"
+          >
+            Ver comanda
+          </button>
+        </div>
+      )}
 
     </div>
   );

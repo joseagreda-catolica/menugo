@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import AvisosCocina from '@/components/pedidos/AvisosCocina'
 
 export default function Layout() {
   const location = useLocation()
@@ -200,6 +201,9 @@ export default function Layout() {
         </div>
 
       </aside>
+
+      {/* Aviso al mesero cuando cocina deja un platillo listo (RF-19) */}
+      {rolActual === "MESERO" && <AvisosCocina />}
 
       {/* ================= CONTENIDO ================= */}
       <main className="min-h-screen min-w-0 flex-1 lg:ml-72">
