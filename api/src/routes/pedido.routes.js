@@ -4,8 +4,19 @@ const requireAuth = require('../middlewares/auth.middleware');
 const requireRole = require('../middlewares/role.middleware');
 const bitacoraService = require('../services/bitacora.service');
 const AppError = require('../lib/AppError');
+const { z } = require('zod');
+const validate = require('../middlewares/validate.middleware');
 
 const router = Router();
+
+const modificarLineaSchema = z
+  .object({
+    cantidad: z.number().int().min(1, 'La cantidad minima es 1.').max(99, 'La cantidad maxima es 99.').optional(),
+    notaPreparacion: z.string().max(200, 'La nota admite hasta 200 caracteres.').optional(),
+  })
+  .refine((datos) => datos.cantidad !== undefined || datos.notaPreparacion !== undefined, {
+    message: 'Indica la cantidad o la nota que quieres modificar.',
+  });
 
 // Maquina de estados de la linea de pedido (docs/maquinas-estado.md, RF-19): cada
 // transicion permitida y los roles que pueden ejecutarla. Cualquier otra se rechaza.
@@ -236,6 +247,57 @@ router.post('/', async (req, res) => {
       error: 'Error interno al procesar el pedido.',
       detalle: error.message,
     });
+  }
+});
+
+// ============================================================================
+// 2.5 PATCH /api/pedidos/lineas/:id - Modificar cantidad o nota de un platillo (RF-15)
+//     Solo mientras el platillo no haya iniciado su preparacion; la cuenta se ajusta.
+// ============================================================================
+router.patch('/lineas/:id', requireRole('administrador', 'mesero'), validate(modificarLineaSchema), async (req, res) => {
+  try {
+    const idLinea = Number(req.params.id);
+    if (isNaN(idLinea)) {
+      return res.status(400).json({ error: 'El ID de la línea no es válido.' });
+    }
+    const { cantidad, notaPreparacion } = req.body;
+
+    const linea = await prisma.$transaction(async (tx) => {
+      const actual = await tx.pedidoLinea.findUnique({ where: { id: idLinea }, include: { pedido: true } });
+      if (!actual) {
+        throw new AppError(404, 'LINEA_NO_ENCONTRADA', 'La línea no existe.');
+      }
+      if (actual.pedido.estado !== 'abierto') {
+        throw new AppError(409, 'PEDIDO_NO_ABIERTO', 'El pedido ya no está abierto.');
+      }
+      if (actual.estado !== 'pendiente') {
+        throw new AppError(409, 'LINEA_EN_PREPARACION', 'El platillo ya inició su preparación y no se puede modificar.');
+      }
+
+      const data = {};
+      if (notaPreparacion !== undefined) data.notaPreparacion = notaPreparacion;
+
+      if (cantidad !== undefined && cantidad !== actual.cantidad) {
+        data.cantidad = cantidad;
+        await tx.$queryRaw`SELECT id FROM cuenta WHERE sesion_mesa_id = ${actual.pedido.sesionMesaId} FOR UPDATE`;
+        const cuenta = await tx.cuenta.findFirst({ where: { sesionMesaId: actual.pedido.sesionMesaId, cerradaEn: null } });
+        if (cuenta) {
+          const diferencia = (cantidad - actual.cantidad) * Number(actual.precioUnitario);
+          await tx.cuenta.update({
+            where: { id: cuenta.id },
+            data: { total: redondear(Math.max(0, Number(cuenta.total) + diferencia)) },
+          });
+        }
+      }
+
+      return tx.pedidoLinea.update({ where: { id: idLinea }, data });
+    });
+
+    res.json({ ok: true, linea });
+  } catch (error) {
+    if (responderAppError(res, error)) return;
+    console.error('=== ERROR AL MODIFICAR LINEA ===', error);
+    res.status(500).json({ error: 'Error al modificar el platillo.', detalle: error.message });
   }
 });
 
