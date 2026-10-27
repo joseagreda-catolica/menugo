@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3000/api'
+import { API_URL } from '@/config'
 
 function headersConAuth(extra = {}) {
   const token = localStorage.getItem('menugo_token')

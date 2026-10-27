@@ -1,3 +1,4 @@
+import { API_URL } from '@/config'
 import { useState, useEffect } from 'react';
 
 export default function MesasAdmin() {
@@ -14,8 +15,6 @@ export default function MesasAdmin() {
   const [capacidad, setCapacidad] = useState(4);
   const [ubicacion, setUbicacion] = useState('Interior');
   const [mesaEditando, setMesaEditando] = useState(null);
-
-  const API_URL = 'http://localhost:3000/api';
 
   // Función auxiliar para obtener las cabeceras con el token JWT
   const getAuthHeaders = () => {

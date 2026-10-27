@@ -1,3 +1,4 @@
+import { resolverFoto } from '@/config'
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { obtenerCartaPublica } from "../Services/MenuService"
@@ -218,7 +219,7 @@ export function CartaPublica() {
                       <div className="relative h-40 w-full overflow-hidden bg-slate-100">
                         {platillo.fotoUrl ? (
                           <img
-                            src={platillo.fotoUrl}
+                            src={resolverFoto(platillo.fotoUrl)}
                             alt={platillo.nombre}
                             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                           />

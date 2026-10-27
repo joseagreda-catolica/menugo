@@ -1,3 +1,4 @@
+import { resolverFoto } from "@/config"
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import {
@@ -156,7 +157,7 @@ export function Platillos() {
     setNombre(p.nombre)
     setPrecio(p.precio)
     setCategoriaId(p.categoriaId || (categorias[0] ? categorias[0].id : ""))
-    setVistaPrevia(p.fotoUrl || "")
+    setVistaPrevia(resolverFoto(p.fotoUrl))
     setArchivoFoto(null)
   }
 
@@ -377,7 +378,7 @@ export function Platillos() {
                         <td className="p-4 pl-6">
                           {p.fotoUrl ? (
                             <img
-                              src={p.fotoUrl}
+                              src={resolverFoto(p.fotoUrl)}
                               alt={p.nombre}
                               className="h-12 w-12 rounded-2xl object-cover border border-slate-200 shadow-sm"
                             />

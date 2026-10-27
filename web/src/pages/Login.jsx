@@ -1,3 +1,4 @@
+import { API_URL } from "@/config";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext"; // Asegúrate de que la ruta sea correcta
@@ -18,7 +19,7 @@ function Login() {
     setCargando(true);
 
     try {
-      const response = await fetch("http://localhost:3000/api/auth/login", {
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

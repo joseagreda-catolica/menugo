@@ -1,3 +1,4 @@
+import { resolverFoto } from '@/config'
 import { useState, useEffect } from 'react'
 import {
   obtenerCategorias,
@@ -132,7 +133,7 @@ export default function MenuAdmin() {
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     {(platillo.fotoUrl || platillo.imagen) && (
                       <img
-                        src={platillo.fotoUrl || platillo.imagen}
+                        src={resolverFoto(platillo.fotoUrl || platillo.imagen)}
                         alt={platillo.nombre}
                         className="w-12 h-12 rounded-lg object-cover shrink-0 bg-gray-200"
                       />

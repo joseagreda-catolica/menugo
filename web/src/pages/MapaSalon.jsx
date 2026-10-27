@@ -1,3 +1,4 @@
+import { API_URL } from '@/config'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { obtenerMesas } from '@/Services/mesasService'
@@ -13,8 +14,6 @@ export default function MapaSalon() {
   // Modal de cambio de estado / acciones
   const [mesaSeleccionada, setMesaSeleccionada] = useState(null)
   const [guardandoEstado, setGuardandoEstado] = useState(false)
-
-  const API_URL = 'http://localhost:3000/api'
 
   // Función para cargar mesas desde la BD
   const cargarMesasBD = useCallback(async () => {

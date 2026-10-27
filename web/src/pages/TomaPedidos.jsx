@@ -1,3 +1,4 @@
+import { resolverFoto } from "@/config";
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 
@@ -485,7 +486,7 @@ export default function TomaPedidos() {
                   {platillo.fotoUrl ? (
 
                     <img
-                      src={platillo.fotoUrl}
+                      src={resolverFoto(platillo.fotoUrl)}
                       alt={platillo.nombre}
                       className="
                         w-full
