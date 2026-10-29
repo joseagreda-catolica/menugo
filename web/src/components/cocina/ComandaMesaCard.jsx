@@ -1,3 +1,5 @@
+import { formatearCronometro } from '@/utils/formatearCronometro'
+
 const configEstado = {
   pendiente: {
     badge: 'bg-amber-100 text-amber-800',
@@ -20,15 +22,6 @@ const configEstado = {
     btnTexto: 'Marcar Entregado 🍽️',
     btnColor: 'bg-slate-700 hover:bg-slate-800 text-white',
   },
-}
-
-// Cronometro: "5:07" (min:seg) y, pasada la hora, "1:05:07" (h:min:seg).
-function formatearCronometro(ms) {
-  const total = Math.max(0, Math.floor(ms / 1000))
-  const horas = Math.floor(total / 3600)
-  const minutos = Math.floor((total % 3600) / 60)
-  const segundos = String(total % 60).padStart(2, '0')
-  return horas > 0 ? `${horas}:${String(minutos).padStart(2, '0')}:${segundos}` : `${minutos}:${segundos}`
 }
 
 // Una tarjeta por mesa (RF-17): reune todos sus platillos pendientes. Si algun platillo

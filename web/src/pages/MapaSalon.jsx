@@ -2,13 +2,7 @@ import { API_URL } from '@/config'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { obtenerMesas } from '@/Services/mesasService'
-
-// RF-12: "12 min" o "1 h 05 min".
-function formatearTiempo(ms) {
-  const minutos = Math.max(0, Math.floor(ms / 60000))
-  if (minutos < 60) return `${minutos} min`
-  return `${Math.floor(minutos / 60)} h ${String(minutos % 60).padStart(2, '0')} min`
-}
+import { formatearCronometro } from '@/utils/formatearCronometro'
 
 export default function MapaSalon() {
   const navigate = useNavigate()
@@ -55,6 +49,12 @@ export default function MapaSalon() {
     const intervalo = setInterval(cargarMesasBD, 8000)
     return () => clearInterval(intervalo)
   }, [cargarMesasBD])
+
+  // RF-12: el tiempo de ocupacion de cada mesa avanza cada segundo.
+  useEffect(() => {
+    const reloj = setInterval(() => setAhora(Date.now()), 1000)
+    return () => clearInterval(reloj)
+  }, [])
 
   // Cambiar el estado de una mesa en la BD y en la interfaz
   const handleCambiarEstado = async (nuevoEstado) => {
@@ -478,10 +478,10 @@ export default function MapaSalon() {
 
                     {mesa.abiertaEn && (
                       <span
-                        className="ml-auto shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600"
-                        title="Tiempo de ocupación"
+                        className="ml-auto shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-slate-600"
+                        title="Tiempo de ocupación (min:seg)"
                       >
-                        ⏱ {formatearTiempo(ahora - new Date(mesa.abiertaEn).getTime())}
+                        ⏱ {formatearCronometro(ahora - new Date(mesa.abiertaEn).getTime())}
                       </span>
                     )}
                   </div>
