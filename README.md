@@ -43,7 +43,7 @@ Sistema funcional de punta a punta: los 8 módulos de la propuesta y sus 30 requ
 | M7 Reportes | Ventas por rango de fechas, platillos más y menos vendidos, ventas por hora y por día de la semana |
 | M8 Seguridad | Inicio de sesión, permisos por rol (administrador, mesero, cocinero, cajero), bitácora de acciones críticas y límite de intentos fallidos |
 
-**Pendiente de verificar:** la prueba de usabilidad con tres personas (RNF-01), el funcionamiento en Firefox y Safari (RNF-02, solo se ha probado en Chrome/Edge) y el despliegue en Render o Railway. Según la propuesta, la demostración puede ejecutarse en local.
+**Pendiente de verificar:** la prueba de usabilidad con tres personas (RNF-01), el funcionamiento en Firefox y Safari (RNF-02, solo se ha probado en Chrome/Edge) y poner en línea el despliegue gratuito (Render + Neon + Cloudinary), que ya está preparado: ver [docs/despliegue.md](docs/despliegue.md). Según la propuesta, la demostración puede ejecutarse en local.
 
 El tablero de trabajo (134 tareas) vive en los [Issues](https://github.com/joseagreda-catolica/menugo/issues) y [Milestones](https://github.com/joseagreda-catolica/menugo/milestones); su fuente original y el script que las carga están en [`planificacion/`](planificacion/).
 
@@ -55,6 +55,7 @@ web/            Frontend (React + Vite + Tailwind). Ver web/README.md
 docs/           Modelo de datos, diccionario de datos, máquinas de estado y contratos
 planificacion/  Tareas del proyecto y script de carga a GitHub
 docker-compose.yml  PostgreSQL 16 para desarrollo
+render.yaml     Despliegue gratuito en Render (ver docs/despliegue.md)
 ```
 
 ## Requisitos de entorno

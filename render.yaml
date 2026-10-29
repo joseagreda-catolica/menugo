@@ -1,0 +1,37 @@
+# Blueprint de Render: un solo servicio web gratuito que sirve el API y el frontend.
+# La base de datos vive en Neon (ver docs/despliegue.md), no en Render: el PostgreSQL
+# gratuito de Render caduca a los 30 dias.
+services:
+  - type: web
+    name: menugo
+    runtime: node
+    plan: free
+    region: ohio
+    # Rama que se despliega sola en cada push. Cambiar a main cuando se cierre el proyecto.
+    branch: develop
+    # El frontend necesita sus devDependencies (vite, tailwind) para compilarse, y
+    # Render instala en modo produccion. Despues se generan el cliente de Prisma y se
+    # aplican las migraciones pendientes (api/package.json, script "build").
+    buildCommand: npm --prefix web ci --include=dev && npm --prefix web run build && npm --prefix api ci && npm --prefix api run build
+    startCommand: npm --prefix api start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: NODE_ENV
+        value: production
+      # El frontend se sirve desde el mismo dominio que el API.
+      - key: VITE_API_URL
+        value: /api
+      - key: JWT_SECRET
+        generateValue: true
+      # Cadena de conexion de Neon (conexion directa, no la "pooled").
+      - key: DATABASE_URL
+        sync: false
+      # Fotos de platillos. Sin esto se pierden al reiniciar el servidor.
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false

@@ -7,7 +7,9 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
-const PASSWORD_DEMO = 'menugo123';
+// En un despliegue publico conviene fijar SEED_PASSWORD para no dejar la contrasena de
+// ejemplo en internet.
+const PASSWORD_DEMO = process.env.SEED_PASSWORD || 'menugo123';
 
 async function seedUsuarios() {
   const hash = await bcrypt.hash(PASSWORD_DEMO, 10);
