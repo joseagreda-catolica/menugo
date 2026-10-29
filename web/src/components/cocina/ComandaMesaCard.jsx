@@ -22,14 +22,23 @@ const configEstado = {
   },
 }
 
+// Cronometro: "5:07" (min:seg) y, pasada la hora, "1:05:07" (h:min:seg).
+function formatearCronometro(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  const horas = Math.floor(total / 3600)
+  const minutos = Math.floor((total % 3600) / 60)
+  const segundos = String(total % 60).padStart(2, '0')
+  return horas > 0 ? `${horas}:${String(minutos).padStart(2, '0')}:${segundos}` : `${minutos}:${segundos}`
+}
+
 // Una tarjeta por mesa (RF-17): reune todos sus platillos pendientes. Si algun platillo
 // lleva esperando mas del umbral configurado por el administrador, la tarjeta se
 // destaca en rojo (RF-20).
 export default function ComandaMesaCard({ comanda, ahora, umbralMin, onCambiarEstado }) {
   const enCocina = Number.isFinite(comanda.desdeEnCocina)
   const referencia = enCocina ? comanda.desdeEnCocina : comanda.desde
-  const minutos = Math.max(0, Math.floor((ahora - referencia) / 60000))
-  const atrasada = enCocina && minutos >= umbralMin
+  const esperaMs = Math.max(0, ahora - referencia)
+  const atrasada = enCocina && esperaMs >= umbralMin * 60000
 
   return (
     <div
@@ -46,12 +55,12 @@ export default function ComandaMesaCard({ comanda, ahora, umbralMin, onCambiarEs
             </span>
           )}
           <span
-            className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+            className={`rounded-full px-2.5 py-1 text-xs font-bold tabular-nums ${
               atrasada ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'
             }`}
-            title="Tiempo desde que se pidió"
+            title="Tiempo desde que se pidió (min:seg)"
           >
-            ⏱ {minutos} min
+            ⏱ {formatearCronometro(esperaMs)}
           </span>
         </div>
       </div>

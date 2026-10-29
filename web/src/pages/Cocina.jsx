@@ -36,6 +36,12 @@ export default function Cocina() {
     return () => clearInterval(intervalo)
   }, [cargarPedidos])
 
+  // El cronometro de cada comanda avanza cada segundo, sin esperar a la siguiente consulta.
+  useEffect(() => {
+    const reloj = setInterval(() => setAhora(Date.now()), 1000)
+    return () => clearInterval(reloj)
+  }, [])
+
   // El umbral lo cambia el administrador; el resto de roles lo relee cada 15 s.
   useEffect(() => {
     const cargarUmbral = () =>
